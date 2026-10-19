@@ -35,7 +35,7 @@ func buildWindowContent(t *testing.T) fyne.Window {
 	msgLbl := widget.NewLabel("")
 	msgLbl.Wrapping = fyne.TextWrapWord
 	status := NewStatusPanel(func() {}, func() {})
-	pickerBtn := widget.NewButton("选择 ninfer.exe…", func() {})
+	pickerBtn := widget.NewButton("打开", func() {})
 
 	a := &App{form: form, status: status, logv: logv, msgLbl: msgLbl, pickerBtn: pickerBtn}
 	a.buildLayout(w)

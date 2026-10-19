@@ -1,5 +1,5 @@
-// layout.go 组装窗口布局：顶部（保存/加载操作行）/ 两栏主体——
-// 左栏：选择 ninfer.exe 按钮 + 启动/停止按钮 + 8 组参数 tab（字段垂直排列）；
+// layout.go 组装窗口布局：顶部（保存/重新加载/启动/停止操作行）/ 两栏主体——
+// 左栏：打开按钮 + 8 组参数 tab（字段垂直排列）；
 // 右栏：上 30% 状态区（状态行 + 校验行）、下 70% 日志区（VSplit 可拖动）。
 package gui
 
@@ -16,10 +16,8 @@ const logMinHeight = 200
 func (a *App) buildLayout(window fyne.Window) {
 	logArea := a.logv.Content() // *container.Scroll，可 SetMinSize
 	logArea.SetMinSize(fyne.NewSize(0, logMinHeight))
-	toolbar := container.NewHBox(a.form.saveBtn, a.form.loadBtn, layout.NewSpacer(), a.msgLbl)
-	left := container.NewBorder(
-		container.NewVBox(a.pickerBtn, a.status.Buttons()),
-		nil, nil, nil, a.form.tabs)
+	toolbar := container.NewHBox(a.form.saveBtn, a.form.loadBtn, a.status.Buttons(), layout.NewSpacer(), a.msgLbl)
+	left := container.NewBorder(a.pickerBtn, nil, nil, nil, a.form.tabs)
 	right := container.NewVSplit(
 		container.NewVBox(a.status.StatusRow(), a.form.errLabel),
 		logArea)

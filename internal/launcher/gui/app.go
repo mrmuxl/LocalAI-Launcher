@@ -80,7 +80,7 @@ func NewApp() *App {
 	a.form.onChange = a.onFormChange
 	a.form.saveBtn.OnTapped = a.onSave
 	a.form.loadBtn.OnTapped = a.onLoad
-	a.pickerBtn = widget.NewButton("选择 ninfer.exe…", a.pickWorker)
+	a.pickerBtn = widget.NewButton("打开", a.pickWorker)
 
 	// 状态面板：启动/停止回调注入（主线程回调，立即返回）。
 	a.status = NewStatusPanel(a.onStart, a.onStop)
