@@ -49,17 +49,20 @@ func NewStatusPanel(onStart, onStop func()) *StatusPanel {
 	return p
 }
 
-// Row 返回状态行（供窗口布局使用）。
-func (p *StatusPanel) Row() fyne.CanvasObject {
+// StatusRow 返回状态标签行（状态/PID/运行时长/最新日志，供右栏状态区使用）。
+func (p *StatusPanel) StatusRow() fyne.CanvasObject {
 	return container.NewHBox(
 		p.stateLabel,
 		p.pidLabel,
 		p.uptimeLabel,
 		p.lastLogLabel,
 		layout.NewSpacer(),
-		p.startBtn,
-		p.stopBtn,
 	)
+}
+
+// Buttons 返回启动/停止按钮行（供左栏操作区使用）。
+func (p *StatusPanel) Buttons() fyne.CanvasObject {
+	return container.NewHBox(p.startBtn, p.stopBtn)
 }
 
 // ApplyState 按 D4 状态机刷新文案并切换按钮可用性（主线程）。
