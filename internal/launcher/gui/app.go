@@ -93,12 +93,14 @@ func NewApp() *App {
 	// 日志接线：worker OnLine → 环形缓冲（必须在 Start 之前完成）。
 	a.wireLog()
 
-	// 布局：顶部（状态行 + 校验行 + 操作行）/ 中部 8 组 tab / 底部日志区（最小 200）。
+	// 布局：顶部（状态行 + 校验行 + 操作行）/ 两栏主体——左侧 8 组参数 tab、右侧日志区。
 	logArea := a.logv.Content() // *container.Scroll，可 SetMinSize
 	logArea.SetMinSize(fyne.NewSize(0, logMinHeight))
 	toolbar := container.NewHBox(a.pickerBtn, a.form.saveBtn, a.form.loadBtn, layout.NewSpacer(), a.msgLbl)
 	top := container.NewVBox(a.status.Row(), a.form.errLabel, toolbar)
-	window.SetContent(container.NewBorder(top, logArea, nil, nil, a.form.tabs))
+	split := container.NewHSplit(a.form.tabs, logArea)
+	split.Offset = 0.62 // 左侧表单占多数，分割条可拖动调整
+	window.SetContent(container.NewBorder(top, nil, nil, nil, split))
 	window.Resize(windowSize)
 	window.SetOnClosed(a.onClosed)
 
