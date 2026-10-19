@@ -384,3 +384,53 @@ func TestManagerGoroutineNoLeak(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 }
+
+// ---------- worker 路径注入 ----------
+
+// TestManagerSetPathStopped SetPath 在 Stopped 状态生效、空串被忽略。
+func TestManagerSetPathStopped(t *testing.T) {
+	m := New("")
+	if got := m.Path(); got != DefaultWorkerPath {
+		t.Fatalf("空构造应回退默认路径, got %q", got)
+	}
+
+	m.SetPath("")
+	if got := m.Path(); got != DefaultWorkerPath {
+		t.Fatalf("空串应被忽略, got %q", got)
+	}
+
+	const want = `C:\fake\ninfer.exe`
+	m.SetPath(want)
+	if got := m.Path(); got != want {
+		t.Fatalf("Stopped 状态 SetPath 应生效, want %q, got %q", want, got)
+	}
+
+	m2 := New("anything")
+	m2.SetPath("")
+	if got := m2.Path(); got != "anything" {
+		t.Fatalf("空串不应覆盖已有路径, got %q", got)
+	}
+}
+
+// TestManagerSetPathRunning SetPath 在 Running 状态不生效（不影响已启动进程）。
+func TestManagerSetPathRunning(t *testing.T) {
+	exe := buildFake(t, fakeSlowSrc)
+	m := New(exe)
+	m.Grace = 300 * time.Millisecond
+	if err := m.Start(defaultCfg()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if m.State() != Running {
+		t.Fatalf("Start 后状态 = %v, want Running", m.State())
+	}
+
+	m.SetPath(`C:\other\ninfer.exe`)
+	if got := m.Path(); got != exe {
+		t.Fatalf("Running 状态 SetPath 不应生效, want %q, got %q", exe, got)
+	}
+
+	if err := m.Stop(); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	waitExitCode(t, m)
+}

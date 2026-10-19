@@ -7,10 +7,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"ninferrmanager/internal/launcher/gui"
-	"ninferrmanager/internal/launcher/process"
 	"ninferrmanager/internal/launcher/version"
 )
 
@@ -26,18 +24,8 @@ func main() {
 
 	fmt.Println(version.Banner())
 
-	// NewApp 必须在主 goroutine 调用（fyne.NewApp 约束）。
-	app := gui.NewApp(resolveWorkerPath())
+	// NewApp 必须在主 goroutine 调用（app.New 约束）；
+	// worker 路径由 App 启动后经存档或文件选择框确定。
+	app := gui.NewApp()
 	app.Run()
 }
-
-// resolveWorkerPath 定位与 launcher exe 同目录的 worker 可执行文件（不依赖 CWD）；
-// 无法获取 exe 路径时回退 process.DefaultWorkerPath。
-func resolveWorkerPath() string {
-	exe, err := os.Executable()
-	if err != nil {
-		return process.DefaultWorkerPath
-	}
-	return filepath.Join(filepath.Dir(exe), "ninfer.exe")
-}
-

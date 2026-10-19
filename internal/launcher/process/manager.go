@@ -86,6 +86,26 @@ func New(cmdPath string) *Manager {
 	return &Manager{cmdPath: cmdPath, Grace: GracePeriod}
 }
 
+// SetPath 更新 worker 可执行文件路径（如用户通过文件选择框重新指定）。
+// 仅在 Stopped 状态生效；p 为空时忽略，保持现有路径。
+func (m *Manager) SetPath(p string) {
+	if p == "" {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.state == Stopped {
+		m.cmdPath = p
+	}
+}
+
+// Path 返回当前生效的 worker 可执行文件路径。
+func (m *Manager) Path() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.cmdPath
+}
+
 // State 返回当前状态。
 func (m *Manager) State() State {
 	m.mu.Lock()

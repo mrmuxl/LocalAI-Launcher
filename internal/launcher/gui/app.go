@@ -10,6 +10,8 @@ package gui
 import (
 	"context"
 	"log"
+	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,7 +19,9 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
 	"ninferrmanager/internal/launcher/config"
@@ -38,14 +42,15 @@ const statusInterval = time.Second
 
 // App 组装窗口、表单、状态面板、日志视图与进程 Manager（T6 聚合根）。
 type App struct {
-	fyneApp fyne.App
-	window  fyne.Window
-	form    *Form
-	status  *StatusPanel
-	logv    *LogView
-	msgLbl  *widget.Label // 保存/加载操作反馈行（与校验行分离）
-	manager *process.Manager
-	ring    *process.RingLog
+	fyneApp   fyne.App
+	window    fyne.Window
+	form      *Form
+	status    *StatusPanel
+	logv      *LogView
+	msgLbl    *widget.Label  // 保存/加载操作反馈行（与校验行分离）
+	pickerBtn *widget.Button // 选择 ninfer.exe 文件对话框入口
+	manager   *process.Manager
+	ring      *process.RingLog
 
 	mu        sync.Mutex
 	startedAt time.Time // 最近一次进入 Running 的时间（doStart 写，tick 读）
@@ -57,9 +62,10 @@ type App struct {
 	tickDone chan struct{}
 }
 
-// NewApp 构建 App 与窗口（必须在主 goroutine 调用：fyne.NewApp 约束）。
-// workerPath 为 worker 可执行文件路径；空串时使用 process.DefaultWorkerPath。
-func NewApp(workerPath string) *App {
+// NewApp 构建 App 与窗口（必须在主 goroutine 调用：app.New 约束）。
+// worker 路径不在此决定：由 initWorkerPath 在后台读取存档，
+// 无存档时经文件选择框由用户指定（选择结果持久化，下次启动直接使用）。
+func NewApp() *App {
 	fyneApp := app.New()
 	window := fyneApp.NewWindow(windowTitle)
 
@@ -67,18 +73,19 @@ func NewApp(workerPath string) *App {
 		fyneApp: fyneApp,
 		window:  window,
 		ring:    process.NewRingLog(0), // 0 → process.DefaultRingSize
-		manager: process.New(workerPath),
+		manager: process.New(""),
+		msgLbl:  widget.NewLabel(""),
 	}
 
 	a.form = NewForm(window)
 	a.logv = NewLogView(a.ring)
-	a.msgLbl = widget.NewLabel("")
 	a.msgLbl.Wrapping = fyne.TextWrapWord
 
 	// 按钮回调接线（NewForm 不预接 OnTapped，由 App 统一注入）。
 	a.form.onChange = a.onFormChange
 	a.form.saveBtn.OnTapped = a.onSave
 	a.form.loadBtn.OnTapped = a.onLoad
+	a.pickerBtn = widget.NewButton("选择 ninfer.exe…", a.pickWorker)
 
 	// 状态面板：启动/停止回调注入（主线程回调，立即返回）。
 	a.status = NewStatusPanel(a.onStart, a.onStop)
@@ -89,7 +96,7 @@ func NewApp(workerPath string) *App {
 	// 布局：顶部（状态行 + 校验行 + 操作行）/ 中部 8 组 tab / 底部日志区（最小 200）。
 	logArea := a.logv.Content() // *container.Scroll，可 SetMinSize
 	logArea.SetMinSize(fyne.NewSize(0, logMinHeight))
-	toolbar := container.NewHBox(a.form.saveBtn, a.form.loadBtn, layout.NewSpacer(), a.msgLbl)
+	toolbar := container.NewHBox(a.pickerBtn, a.form.saveBtn, a.form.loadBtn, layout.NewSpacer(), a.msgLbl)
 	top := container.NewVBox(a.status.Row(), a.form.errLabel, toolbar)
 	window.SetContent(container.NewBorder(top, logArea, nil, nil, a.form.tabs))
 	window.Resize(windowSize)
@@ -98,11 +105,93 @@ func NewApp(workerPath string) *App {
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.tickDone = make(chan struct{})
 
-	// 初始配置后台加载：LoadConfigPath → LoadConfig → Normalize → 填表 + 校验。
+	// 初始化后台派发：worker 路径选择 + 初始配置加载 + 1s 状态刷新。
+	go a.initWorkerPath()
 	go a.doLoadInitial()
 	go a.tick()
 
 	return a
+}
+
+// initWorkerPath 决定 worker 可执行文件路径（后台 goroutine，NewApp 时派发）：
+// 存档有效 → 直接采用并提示；否则回到主线程弹出文件选择框，由用户指定，
+// 选择结果经 SaveWorkerPathDefault 持久化（下次启动跳过选择框）。
+func (a *App) initWorkerPath() {
+	saved, err := config.LoadWorkerPath()
+	switch {
+	case err != nil:
+		log.Printf("读取 worker 路径存档失败: %v，回退默认路径", err)
+	case saved != "" && fileExists(saved):
+		a.manager.SetPath(saved)
+		fyne.Do(func() {
+			a.msgLbl.SetText("✓ 使用已保存的 ninfer.exe：" + saved)
+		})
+		return
+	case saved != "":
+		log.Printf("已保存的 worker 路径不存在: %s，重新选择", saved)
+	}
+	fyne.Do(a.pickWorker)
+}
+
+// fileExists 路径存在且不是目录。
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
+}
+
+// pickWorker 弹出文件选择框（必须主线程调用：按钮回调或 initWorkerPath 经 fyne.Do），
+// 仅过滤 .exe。用户确认后进入后台 goroutine 校验、持久化并注入 Manager。
+func (a *App) pickWorker() {
+	d := dialog.NewFileOpen(a.onWorkerPicked, a.window)
+	d.SetFilter(storage.NewExtensionFileFilter([]string{".exe"}))
+	// 打开时定位到当前生效路径的目录，减少再次翻找。
+	if p := a.manager.Path(); p != "" && p != process.DefaultWorkerPath {
+		if lister, err := storage.ListerForURI(storage.NewFileURI(filepath.Dir(p))); err == nil {
+			d.SetLocation(lister)
+		}
+	}
+	d.Show()
+}
+
+// onWorkerPicked 文件选择回调（主线程，来自 dialog）：立即关闭 reader 后
+// 将校验与持久化派发到后台 goroutine，避免回调内做文件 IO。
+func (a *App) onWorkerPicked(reader fyne.URIReadCloser, err error) {
+	if err != nil {
+		log.Printf("文件选择失败: %v", err)
+		return
+	}
+	if reader == nil {
+		a.msgLbl.SetText("未选择 ninfer.exe，当前使用默认路径：" + a.manager.Path())
+		return
+	}
+	path := reader.URI().Path()
+	if closeErr := reader.Close(); closeErr != nil {
+		log.Printf("关闭文件选择结果失败: %v", closeErr)
+	}
+	go a.applyWorkerChoice(path)
+}
+
+// applyWorkerChoice 校验、持久化并注入用户选择的 worker 路径（后台 goroutine，
+// 由 onWorkerPicked 派发）。持久化失败仍注入内存路径，仅日志留痕提示未保存。
+func (a *App) applyWorkerChoice(path string) {
+	if !fileExists(path) {
+		log.Printf("选择的 worker 路径不存在: %s", path)
+		fyne.Do(func() {
+			a.msgLbl.SetText("✗ 所选文件不存在，请重新选择")
+		})
+		return
+	}
+
+	if savedPath, err := config.SaveWorkerPathDefault(path); err != nil {
+		log.Printf("保存 worker 路径失败: %v", err)
+	} else {
+		log.Printf("worker 路径已保存: %s", savedPath)
+	}
+
+	a.manager.SetPath(path)
+	fyne.Do(func() {
+		a.msgLbl.SetText("✓ ninfer.exe 路径已保存，下次启动直接使用：" + path)
+	})
 }
 
 // Run 启动 Fyne 事件循环（必须在主 goroutine 调用，阻塞直至应用退出）。
