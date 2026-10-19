@@ -195,7 +195,9 @@ func (a *App) applyWorkerChoice(path string) {
 }
 
 // Run 启动 Fyne 事件循环（必须在主 goroutine 调用，阻塞直至应用退出）。
+// Fyne 不会自动显示窗口：必须先显式 Show，否则主循环空转、进程无窗口。
 func (a *App) Run() {
+	a.window.Show()
 	a.fyneApp.Run()
 	a.cancel()
 	<-a.tickDone
