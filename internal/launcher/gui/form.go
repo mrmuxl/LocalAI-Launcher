@@ -11,6 +11,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	"ninferrmanager/internal/launcher/config"
@@ -125,7 +126,30 @@ type Form struct {
 	onWorkerPathSet func(path string) // App 注入：输入框回车提交路径
 }
 
+// entryWidth 统一输入框固定宽度（所有文本输入行一致，不随窗口拉伸）。
+const entryWidth = 300
+
+// fixedWidth 固定最小宽度的容器包装：布局按 width 分配空间，内容照常渲染。
+type fixedWidth struct {
+	fyne.CanvasObject
+	width float32
+}
+
+func (f *fixedWidth) MinSize() fyne.Size {
+	s := f.CanvasObject.MinSize()
+	if s.Width < f.width {
+		s.Width = f.width
+	}
+	return s
+}
+
+func newFixedWidth(obj fyne.CanvasObject, width float32) fyne.CanvasObject {
+	return &fixedWidth{CanvasObject: obj, width: width}
+}
+
 // NewForm 构建 8 组表单（垂直一排、带分组标题、整体滚动）并返回。
+// 行布局统一：标签列宽取全部标签的最大文本宽度，输入框固定 entryWidth，
+// 保证 34 个输入控件跨组左对齐、长度一致。
 func NewForm(window fyne.Window) *Form {
 	f := &Form{
 		window:  window,
@@ -133,37 +157,52 @@ func NewForm(window fyne.Window) *Form {
 		checks:  make(map[string]*widget.Check),
 	}
 
-	groups := make(map[string]*widget.Form)
-	var groupOrder []string
+	controls := make(map[string]fyne.CanvasObject, len(fieldDefs))
 	for _, d := range fieldDefs {
-		if _, ok := groups[d.group]; !ok {
-			groups[d.group] = widget.NewForm()
-			groupOrder = append(groupOrder, d.group)
-		}
-		var w fyne.Widget
 		switch d.kind {
 		case kindBool:
 			c := widget.NewCheck("", nil)
 			c.OnChanged = func(bool) { f.notifyChange() }
 			f.checks[d.name] = c
-			w = c
+			controls[d.name] = c
 		default:
 			e := widget.NewEntry()
 			e.OnChanged = func(string) { f.notifyChange() }
 			f.entries[d.name] = e
-			w = e
+			controls[d.name] = e
 		}
-		groups[d.group].AppendItem(widget.NewFormItem(d.label, w))
 	}
 
-	// 8 组散开垂直排列：每组一个加粗标题 + 表单；「服务」组后插入推理程序行。
-	var sections []fyne.CanvasObject
-	for _, g := range groupOrder {
-		title := widget.NewLabelWithStyle(g, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-		sections = append(sections, title, groups[g])
-		if g == "服务" {
-			sections = append(sections, f.buildWorkerPathRow())
+	// 统一标签列宽：取全部行标签（含「推理程序」）的最大文本宽度。
+	labelWidth := widget.NewLabel("推理程序").MinSize().Width
+	for _, d := range fieldDefs {
+		if w := widget.NewLabel(d.label).MinSize().Width; w > labelWidth {
+			labelWidth = w
 		}
+	}
+
+	// row 构造统一行：固定宽标签 + 控件（文本输入固定宽，其余按自身宽度）+ 弹性空白。
+	row := func(label string, w fyne.CanvasObject, fixed bool) fyne.CanvasObject {
+		if fixed {
+			w = newFixedWidth(w, entryWidth)
+		}
+		return container.NewHBox(newFixedWidth(widget.NewLabel(label), labelWidth), w, layout.NewSpacer())
+	}
+
+	// 8 组散开垂直排列：每组一个加粗标题 + 统一行；「服务」组后插入推理程序行。
+	var sections []fyne.CanvasObject
+	seen := make(map[string]bool, 8)
+	for _, d := range fieldDefs {
+		if !seen[d.group] {
+			seen[d.group] = true
+			sections = append(sections,
+				widget.NewLabelWithStyle(d.group, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
+			if d.group == "服务" {
+				sections = append(sections, f.buildWorkerPathRow(labelWidth))
+			}
+		}
+		_, isCheck := f.checks[d.name]
+		sections = append(sections, row(d.label, controls[d.name], !isCheck))
 	}
 	f.content = container.NewScroll(container.NewVBox(sections...))
 
@@ -179,9 +218,9 @@ func (f *Form) Content() fyne.CanvasObject {
 	return f.content
 }
 
-// buildWorkerPathRow 构建「推理程序」行：标签 + 路径输入框（占满中段）+ 打开按钮。
+// buildWorkerPathRow 构建「推理程序」行：标签 + 固定宽路径输入框 + 打开按钮。
 // 输入框回车提交路径；打开按钮弹文件选择框（回调由 App 注入）。
-func (f *Form) buildWorkerPathRow() fyne.CanvasObject {
+func (f *Form) buildWorkerPathRow(labelWidth float32) fyne.CanvasObject {
 	f.workerPathEntry = widget.NewEntry()
 	f.workerPathEntry.SetPlaceHolder("ninfer.exe 路径（输入后回车，或点「打开」选择）")
 	f.workerPathEntry.OnSubmitted = func(text string) {
@@ -194,8 +233,12 @@ func (f *Form) buildWorkerPathRow() fyne.CanvasObject {
 			f.onOpenWorker()
 		}
 	})
-	return container.NewBorder(nil, nil,
-		widget.NewLabel("推理程序"), openBtn, f.workerPathEntry)
+	return container.NewHBox(
+		newFixedWidth(widget.NewLabel("推理程序"), labelWidth),
+		newFixedWidth(f.workerPathEntry, entryWidth),
+		openBtn,
+		layout.NewSpacer(),
+	)
 }
 
 // SetWorkerPath 回填推理程序路径输入框（主线程；SetText 不触发 OnSubmitted）。
