@@ -93,13 +93,18 @@ func NewApp() *App {
 	// 日志接线：worker OnLine → 环形缓冲（必须在 Start 之前完成）。
 	a.wireLog()
 
-	// 布局：顶部（状态行 + 校验行 + 操作行）/ 两栏主体——左侧 8 组参数 tab、右侧日志区。
+	// 布局：顶部（校验行 + 操作行）/ 两栏主体——
+	// 左栏：选择 ninfer.exe 按钮 + 8 组参数 tab（字段垂直排列）；
+	// 右栏：上 30% 状态行、下 70% 日志区（VSplit 可拖动）。
 	logArea := a.logv.Content() // *container.Scroll，可 SetMinSize
 	logArea.SetMinSize(fyne.NewSize(0, logMinHeight))
-	toolbar := container.NewHBox(a.pickerBtn, a.form.saveBtn, a.form.loadBtn, layout.NewSpacer(), a.msgLbl)
-	top := container.NewVBox(a.status.Row(), a.form.errLabel, toolbar)
-	split := container.NewHSplit(a.form.tabs, logArea)
-	split.Offset = 0.62 // 左侧表单占多数，分割条可拖动调整
+	toolbar := container.NewHBox(a.form.saveBtn, a.form.loadBtn, layout.NewSpacer(), a.msgLbl)
+	top := container.NewVBox(a.form.errLabel, toolbar)
+	left := container.NewBorder(a.pickerBtn, nil, nil, nil, a.form.tabs)
+	right := container.NewVSplit(a.status.Row(), logArea)
+	right.Offset = 0.3 // 状态行占右栏 30%，日志占 70%，分割条可拖动
+	split := container.NewHSplit(left, right)
+	split.Offset = 0.62 // 左栏表单占多数，分割条可拖动调整
 	window.SetContent(container.NewBorder(top, nil, nil, nil, split))
 	window.Resize(windowSize)
 	window.SetOnClosed(a.onClosed)

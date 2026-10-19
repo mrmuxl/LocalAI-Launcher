@@ -38,13 +38,17 @@ func buildWindowContent(t *testing.T) fyne.Window {
 	msgLbl.Wrapping = fyne.TextWrapWord
 	status := NewStatusPanel(func() {}, func() {})
 
-	// 与 NewApp 相同的布局：顶部（状态行 + 校验行 + 操作行）/ 两栏主体——左参数 tab、右日志区。
+	// 与 NewApp 相同的布局：顶部（校验行 + 操作行）/ 两栏主体——
+	// 左栏：选择按钮 + 参数 tab；右栏：上 30% 状态行、下 70% 日志区。
 	logArea := logv.Content()
 	logArea.SetMinSize(fyne.NewSize(0, logMinHeight))
 	pickerBtn := widget.NewButton("选择 ninfer.exe…", func() {})
-	toolbar := container.NewHBox(pickerBtn, widget.NewButton("保存", func() {}), widget.NewButton("重新加载", func() {}), layout.NewSpacer(), msgLbl)
-	top := container.NewVBox(status.Row(), form.errLabel, toolbar)
-	split := container.NewHSplit(form.tabs, logArea)
+	toolbar := container.NewHBox(widget.NewButton("保存", func() {}), widget.NewButton("重新加载", func() {}), layout.NewSpacer(), msgLbl)
+	top := container.NewVBox(form.errLabel, toolbar)
+	left := container.NewBorder(pickerBtn, nil, nil, nil, form.tabs)
+	right := container.NewVSplit(status.Row(), logArea)
+	right.Offset = 0.3
+	split := container.NewHSplit(left, right)
 	split.Offset = 0.62
 	w.SetContent(container.NewBorder(top, nil, nil, nil, split))
 	return w
