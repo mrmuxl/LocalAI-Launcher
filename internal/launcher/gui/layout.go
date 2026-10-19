@@ -23,6 +23,6 @@ func (a *App) buildLayout(window fyne.Window) {
 		logArea)
 	right.Offset = 0.3 // 状态区占右栏 30%，日志占 70%，分割条可拖动
 	split := container.NewHSplit(left, right)
-	split.Offset = 0.62 // 左栏表单占多数，分割条可拖动调整
+	split.Offset = 0.5 // 左右栏各占一半，分割条可拖动调整
 	window.SetContent(container.NewBorder(toolbar, nil, nil, nil, split))
 }

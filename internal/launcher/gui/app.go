@@ -104,8 +104,8 @@ func NewApp() *App {
 }
 
 // initWorkerPath 决定 worker 可执行文件路径（后台 goroutine，NewApp 时派发）：
-// 存档有效 → 直接采用并提示；否则回到主线程弹出文件选择框，由用户指定，
-// 选择结果经 SaveWorkerPathDefault 持久化（下次启动跳过选择框）。
+// 存档有效 → 直接采用并提示；否则静默回退默认路径并提示，不自动弹窗，
+// 由用户点「打开」按钮时再经 pickWorker 弹出选择框。
 func (a *App) initWorkerPath() {
 	saved, err := config.LoadWorkerPath()
 	switch {
@@ -119,9 +119,11 @@ func (a *App) initWorkerPath() {
 		})
 		return
 	case saved != "":
-		log.Printf("已保存的 worker 路径不存在: %s，重新选择", saved)
+		log.Printf("已保存的 worker 路径不存在: %s，回退默认路径", saved)
 	}
-	fyne.Do(a.pickWorker)
+	fyne.Do(func() {
+		a.msgLbl.SetText("未指定推理程序，使用默认路径：" + a.manager.Path() + "；点「打开」选择 ninfer.exe")
+	})
 }
 
 // fileExists 路径存在且不是目录。

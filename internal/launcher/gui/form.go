@@ -129,22 +129,29 @@ type Form struct {
 // entryWidth 统一输入框固定宽度（所有文本输入行一致，不随窗口拉伸）。
 const entryWidth = 300
 
-// fixedWidth 固定最小宽度的容器包装：布局按 width 分配空间，内容照常渲染。
-type fixedWidth struct {
-	fyne.CanvasObject
-	width float32
+// fixedWidthLayout 将子对象约束为固定宽度、占满可用高度。
+// 必须用 Container+Layout 而非包装器 struct：包装器会经方法提升意外满足
+// fyne.Widget 接口，被 Fyne 渲染树误当独立 widget 导致内容不渲染。
+type fixedWidthLayout struct{ width float32 }
+
+func (l fixedWidthLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	for _, o := range objects {
+		o.Resize(fyne.NewSize(l.width, size.Height))
+	}
 }
 
-func (f *fixedWidth) MinSize() fyne.Size {
-	s := f.CanvasObject.MinSize()
-	if s.Width < f.width {
-		s.Width = f.width
+func (l fixedWidthLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	h := float32(0)
+	for _, o := range objects {
+		if m := o.MinSize().Height; m > h {
+			h = m
+		}
 	}
-	return s
+	return fyne.NewSize(l.width, h)
 }
 
 func newFixedWidth(obj fyne.CanvasObject, width float32) fyne.CanvasObject {
-	return &fixedWidth{CanvasObject: obj, width: width}
+	return container.New(fixedWidthLayout{width: width}, obj)
 }
 
 // NewForm 构建 8 组表单（垂直一排、带分组标题、整体滚动）并返回。
