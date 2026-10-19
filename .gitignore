@@ -1,0 +1,37 @@
+# Binaries
+/bin/
+/dist/
+ninferrmanager
+*.exe
+*.dll
+*.so
+
+# Go workspace
+go.work
+go.work.sum
+
+# Vendor (decide per project: commit or ignore)
+/vendor/
+
+# Test & coverage
+*.test
+coverage.out
+coverage.html
+
+# Environment
+.env
+.env.*
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Build artifacts
+*.out
+.omo/
+.zvec-grep/
+.gitkeep
+
