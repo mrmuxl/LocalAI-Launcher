@@ -37,15 +37,14 @@ const statusInterval = time.Second
 
 // App 组装窗口、表单、状态面板、日志视图与进程 Manager（T6 聚合根）。
 type App struct {
-	fyneApp   fyne.App
-	window    fyne.Window
-	form      *Form
-	status    *StatusPanel
-	logv      *LogView
-	msgLbl    *widget.Label  // 保存/加载操作反馈行（与校验行分离）
-	pickerBtn *widget.Button // 选择 ninfer.exe 文件对话框入口
-	manager   *process.Manager
-	ring      *process.RingLog
+	fyneApp fyne.App
+	window  fyne.Window
+	form    *Form
+	status  *StatusPanel
+	logv    *LogView
+	msgLbl  *widget.Label // 保存/加载操作反馈行（与校验行分离）
+	manager *process.Manager
+	ring    *process.RingLog
 
 	mu        sync.Mutex
 	startedAt time.Time // 最近一次进入 Running 的时间（doStart 写，tick 读）
@@ -80,7 +79,8 @@ func NewApp() *App {
 	a.form.onChange = a.onFormChange
 	a.form.saveBtn.OnTapped = a.onSave
 	a.form.loadBtn.OnTapped = a.onLoad
-	a.pickerBtn = widget.NewButton("打开", a.pickWorker)
+	a.form.onOpenWorker = a.pickWorker
+	a.form.onWorkerPathSet = a.onWorkerPathSubmitted
 
 	// 状态面板：启动/停止回调注入（主线程回调，立即返回）。
 	a.status = NewStatusPanel(a.onStart, a.onStop)
@@ -114,6 +114,7 @@ func (a *App) initWorkerPath() {
 	case saved != "" && fileExists(saved):
 		a.manager.SetPath(saved)
 		fyne.Do(func() {
+			a.form.SetWorkerPath(saved)
 			a.msgLbl.SetText("✓ 使用已保存的 ninfer.exe：" + saved)
 		})
 		return
@@ -180,8 +181,15 @@ func (a *App) applyWorkerChoice(path string) {
 
 	a.manager.SetPath(path)
 	fyne.Do(func() {
+		a.form.SetWorkerPath(path)
 		a.msgLbl.SetText("✓ ninfer.exe 路径已保存，下次启动直接使用：" + path)
 	})
+}
+
+// onWorkerPathSubmitted 推理程序输入框回车回调（主线程，来自 Form）：
+// 立即返回，校验/持久化/注入派发到后台 goroutine。
+func (a *App) onWorkerPathSubmitted(path string) {
+	go a.applyWorkerChoice(path)
 }
 
 // Run 启动 Fyne 事件循环（必须在主 goroutine 调用，阻塞直至应用退出）。

@@ -118,7 +118,11 @@ type Form struct {
 	saveBtn  *widget.Button
 	loadBtn  *widget.Button
 
-	onChange func() // App 注入：字段变化时触发后台校验
+	workerPathEntry *widget.Entry // 推理程序路径输入框（服务组下方）
+
+	onChange        func()            // App 注入：字段变化时触发后台校验
+	onOpenWorker    func()            // App 注入：打开按钮 → 文件选择框
+	onWorkerPathSet func(path string) // App 注入：输入框回车提交路径
 }
 
 // NewForm 构建 8 组表单（垂直一排、带分组标题、整体滚动）并返回。
@@ -152,11 +156,14 @@ func NewForm(window fyne.Window) *Form {
 		groups[d.group].AppendItem(widget.NewFormItem(d.label, w))
 	}
 
-	// 8 组散开垂直排列：每组一个加粗标题 + 表单，整体包滚动容器。
+	// 8 组散开垂直排列：每组一个加粗标题 + 表单；「服务」组后插入推理程序行。
 	var sections []fyne.CanvasObject
 	for _, g := range groupOrder {
 		title := widget.NewLabelWithStyle(g, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 		sections = append(sections, title, groups[g])
+		if g == "服务" {
+			sections = append(sections, f.buildWorkerPathRow())
+		}
 	}
 	f.content = container.NewScroll(container.NewVBox(sections...))
 
@@ -170,6 +177,32 @@ func NewForm(window fyne.Window) *Form {
 // Content 返回表单滚动容器（供窗口布局使用）。
 func (f *Form) Content() fyne.CanvasObject {
 	return f.content
+}
+
+// buildWorkerPathRow 构建「推理程序」行：标签 + 路径输入框（占满中段）+ 打开按钮。
+// 输入框回车提交路径；打开按钮弹文件选择框（回调由 App 注入）。
+func (f *Form) buildWorkerPathRow() fyne.CanvasObject {
+	f.workerPathEntry = widget.NewEntry()
+	f.workerPathEntry.SetPlaceHolder("ninfer.exe 路径（输入后回车，或点「打开」选择）")
+	f.workerPathEntry.OnSubmitted = func(text string) {
+		if f.onWorkerPathSet != nil {
+			f.onWorkerPathSet(text)
+		}
+	}
+	openBtn := widget.NewButton("打开", func() {
+		if f.onOpenWorker != nil {
+			f.onOpenWorker()
+		}
+	})
+	return container.NewBorder(nil, nil,
+		widget.NewLabel("推理程序"), openBtn, f.workerPathEntry)
+}
+
+// SetWorkerPath 回填推理程序路径输入框（主线程；SetText 不触发 OnSubmitted）。
+func (f *Form) SetWorkerPath(p string) {
+	if f.workerPathEntry != nil {
+		f.workerPathEntry.SetText(p)
+	}
 }
 
 // notifyChange 把字段变化转发给 App（主线程内立即返回）。
