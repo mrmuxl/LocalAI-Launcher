@@ -15,7 +15,7 @@ make build-launcher
 ## 运行
 
 1. 双击运行 `bin/ninfer-launcher.exe`。窗口标题「NInfer 启动器」，终端输出版本横幅 `ninfer-launcher v0.1.0`。
-2. 首次启动弹出文件选择框，指定 worker 可执行文件 `ninfer.exe`（仅显示 .exe）；所选路径持久化，下次启动直接使用，不再弹出。工具栏「选择 ninfer.exe…」可随时重新选择。
+2. 表单「服务」组的「推理程序」行指定 worker 可执行文件 `ninfer.exe`：在输入框输入路径后回车，或点「打开」弹文件选择框（仅显示 .exe）。启动时若已有存档则直接采用，否则静默使用默认路径并在操作反馈中提示，不会自动弹窗。所选路径持久化，下次启动直接使用。
 3. 在表单中填写 34 个配置项，点「保存配置」持久化、「重新加载」重新读取；点「启动」拉起 worker，日志面板实时显示输出（保留最近 500 行）；「停止」先发 3 秒宽限等待自行退出，超时后强杀。
 
 - 单实例：Windows 下使用命名互斥锁 `Global\NinferLauncher`，第二个实例弹中文提示并退出（其他平台该锁为 no-op）。
@@ -30,7 +30,7 @@ make build-launcher
 
 ## worker 路径
 
-`%AppData%\NinferLauncher\worker.json`：首次启动经文件选择框指定 `ninfer.exe` 时写入，仅保存可执行文件绝对路径；下次启动直接采用，工具栏「选择 ninfer.exe…」可随时重新选择。存档指向的文件被删除时，下一次启动会再次弹出选择框。
+`%AppData%\NinferLauncher\worker.json`：在表单「推理程序」行输入路径回车或点「打开」选择 `ninfer.exe` 时写入，仅保存可执行文件绝对路径；下次启动直接采用。存档指向的文件被删除时，启动会静默回退默认路径并提示，可重新指定。
 
 ## 与 server 的关系
 
