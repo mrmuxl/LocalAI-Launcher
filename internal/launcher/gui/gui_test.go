@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 
@@ -25,8 +23,8 @@ func newTestWindow(t *testing.T) fyne.Window {
 	return test.NewWindow(nil)
 }
 
-// buildWindowContent 复刻 NewApp 的窗口内容装配（app.go 布局段），
-// 供「窗口构造不 panic」断言使用。
+// buildWindowContent 构造部分填充的 App 并调用真实布局方法 buildLayout，
+// 保证测试与 app.go 布局零漂移。
 func buildWindowContent(t *testing.T) fyne.Window {
 	t.Helper()
 	w := newTestWindow(t)
@@ -37,20 +35,10 @@ func buildWindowContent(t *testing.T) fyne.Window {
 	msgLbl := widget.NewLabel("")
 	msgLbl.Wrapping = fyne.TextWrapWord
 	status := NewStatusPanel(func() {}, func() {})
-
-	// 与 NewApp 相同的布局：顶部（校验行 + 操作行）/ 两栏主体——
-	// 左栏：选择按钮 + 参数 tab；右栏：上 30% 状态行、下 70% 日志区。
-	logArea := logv.Content()
-	logArea.SetMinSize(fyne.NewSize(0, logMinHeight))
 	pickerBtn := widget.NewButton("选择 ninfer.exe…", func() {})
-	toolbar := container.NewHBox(widget.NewButton("保存", func() {}), widget.NewButton("重新加载", func() {}), layout.NewSpacer(), msgLbl)
-	top := container.NewVBox(form.errLabel, toolbar)
-	left := container.NewBorder(pickerBtn, nil, nil, nil, form.tabs)
-	right := container.NewVSplit(status.Row(), logArea)
-	right.Offset = 0.3
-	split := container.NewHSplit(left, right)
-	split.Offset = 0.62
-	w.SetContent(container.NewBorder(top, nil, nil, nil, split))
+
+	a := &App{form: form, status: status, logv: logv, msgLbl: msgLbl, pickerBtn: pickerBtn}
+	a.buildLayout(w)
 	return w
 }
 
