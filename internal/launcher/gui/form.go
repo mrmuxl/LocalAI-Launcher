@@ -111,7 +111,7 @@ var validationZh = map[string]string{
 // 所有方法必须运行在主线程（Fyne 约束）。
 type Form struct {
 	window   fyne.Window
-	tabs     *container.AppTabs
+	content  fyne.CanvasObject // 8 组表单垂直排列的滚动容器
 	entries  map[string]*widget.Entry
 	checks   map[string]*widget.Check
 	errLabel *widget.Label
@@ -121,7 +121,7 @@ type Form struct {
 	onChange func() // App 注入：字段变化时触发后台校验
 }
 
-// NewForm 构建 8 组 tab 表单并返回。
+// NewForm 构建 8 组表单（垂直一排、带分组标题、整体滚动）并返回。
 func NewForm(window fyne.Window) *Form {
 	f := &Form{
 		window:  window,
@@ -152,17 +152,24 @@ func NewForm(window fyne.Window) *Form {
 		groups[d.group].AppendItem(widget.NewFormItem(d.label, w))
 	}
 
-	var tabItems []*container.TabItem
+	// 8 组散开垂直排列：每组一个加粗标题 + 表单，整体包滚动容器。
+	var sections []fyne.CanvasObject
 	for _, g := range groupOrder {
-		tabItems = append(tabItems, container.NewTabItem(g, container.NewScroll(groups[g])))
+		title := widget.NewLabelWithStyle(g, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+		sections = append(sections, title, groups[g])
 	}
-	f.tabs = container.NewAppTabs(tabItems...)
+	f.content = container.NewScroll(container.NewVBox(sections...))
 
 	f.errLabel = widget.NewLabel("✓ 配置有效")
 	f.errLabel.Wrapping = fyne.TextWrapWord
 	f.saveBtn = widget.NewButton("保存配置", nil)
 	f.loadBtn = widget.NewButton("重新加载", nil)
 	return f
+}
+
+// Content 返回表单滚动容器（供窗口布局使用）。
+func (f *Form) Content() fyne.CanvasObject {
+	return f.content
 }
 
 // notifyChange 把字段变化转发给 App（主线程内立即返回）。
