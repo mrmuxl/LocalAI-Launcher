@@ -10,7 +10,7 @@ NInfer 和llama.cpp 推理引擎的 Windows 桌面启动器（推理程序可执
 make build-launcher
 ```
 
-产物为 `bin/LocalAI-launcher.exe`。
+产物为 `bin/LocalAI-launcher.exe`。发布构建用 `make build-release`（`-H windowsgui` 链接标志，双击 exe 不弹控制台/cmd 窗口，直接出界面）。
 
 ## 运行
 
