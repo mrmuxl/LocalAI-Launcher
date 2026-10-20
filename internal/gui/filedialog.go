@@ -15,6 +15,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -31,6 +32,7 @@ type dirEntry struct {
 type filePicker struct {
 	win     fyne.Window
 	pathBox *widget.Entry // 当前目录（可编辑，回车跳转）
+	nameBox *widget.Entry // 底部文件名框（单击文件回填，可手输后点「选择」）
 	list    *widget.List
 	entries []dirEntry
 	cur     string   // 当前目录
@@ -38,12 +40,14 @@ type filePicker struct {
 
 	lastID    int                           // 上次单击的列表项（双击检测）
 	lastSelAt time.Time                     // 上次单击时间
-	onPick    func(path string, dir string) // 双击文件：完整路径 + 所在目录
+	onPick    func(path string, dir string) // 确认选择：完整路径 + 所在目录
 }
 
 // newFilePicker 构建文件选择窗口（主线程调用，不自动显示）。
-// start 为起始目录；exts 为扩展名过滤（如 []string{".gguf"}，空 = 不过滤）；
-// onPick 在双击文件时回调（主线程），dir 为文件所在目录（供记忆）。
+// 布局对齐 fyne 内置文件弹窗：顶部（上级 + 目录路径框）/ 中间文件列表 /
+// 底部（文件名框 + 取消/选择按钮）。start 为起始目录；exts 为扩展名过滤
+// （如 []string{".gguf"}，空 = 不过滤）；onPick 在确认选择时回调（主线程），
+// dir 为文件所在目录（供记忆）。
 func newFilePicker(app fyne.App, title, start string, exts []string, onPick func(path, dir string)) *filePicker {
 	p := &filePicker{
 		exts:   exts,
@@ -61,8 +65,10 @@ func newFilePicker(app fyne.App, title, start string, exts []string, onPick func
 			p.pathBox.SetText(p.cur)
 		}
 	}
-
 	upBtn := widget.NewButton("上级", func() { p.enter(filepath.Dir(p.cur)) })
+
+	p.nameBox = widget.NewEntry()
+	p.nameBox.SetPlaceHolder("选中文件后显示名称，也可直接输入")
 
 	p.list = widget.NewList(
 		func() int { return len(p.entries) },
@@ -71,7 +77,7 @@ func newFilePicker(app fyne.App, title, start string, exts []string, onPick func
 			e := p.entries[i]
 			l := o.(*widget.Label)
 			if e.isDir {
-				l.SetText("[目录] " + e.name)
+				l.SetText(e.name + "/")
 			} else {
 				l.SetText(e.name)
 			}
@@ -81,20 +87,44 @@ func newFilePicker(app fyne.App, title, start string, exts []string, onPick func
 		p.onListSelected(i)
 	}
 
+	cancelBtn := widget.NewButton("取消", func() { p.win.Close() })
+	confirmBtn := widget.NewButton("选择", func() { p.confirm() })
+	confirmBtn.Importance = widget.HighImportance
+
+	nameRow := container.NewHBox(widget.NewLabel("文件名："), p.nameBox)
+	btnRow := container.NewHBox(layout.NewSpacer(), cancelBtn, confirmBtn)
+	bottom := container.NewVBox(nameRow, btnRow)
+
 	p.win.SetContent(container.NewBorder(
 		container.NewHBox(upBtn, p.pathBox),
-		nil, nil, nil,
+		bottom, nil, nil,
 		p.list,
 	))
 	p.enter(start)
 	return p
 }
 
+// confirm 用文件名框当前内容确认选择（主线程）：文件存在且匹配过滤才回调。
+func (p *filePicker) confirm() {
+	name := strings.TrimSpace(p.nameBox.Text)
+	if name == "" {
+		return
+	}
+	path := filepath.Join(p.cur, name)
+	st, err := os.Stat(path)
+	if err != nil || st.IsDir() {
+		return
+	}
+	dir := p.cur
+	p.win.Close()
+	p.onPick(path, dir)
+}
+
 // show 显示窗口（主线程）。
 func (p *filePicker) show() { p.win.Show() }
 
-// onListSelected 处理列表单击：同项 500ms 内再次单击视为双击——
-// 目录进入、文件回调 onPick 并关闭窗口。
+// onListSelected 处理列表单击：单击文件回填底部文件名框；
+// 同项 500ms 内再次单击视为双击——目录进入、文件确认选择。
 func (p *filePicker) onListSelected(i widget.ListItemID) {
 	now := time.Now()
 	if int(i) == p.lastID && now.Sub(p.lastSelAt) < doubleClickWindow {
@@ -104,6 +134,9 @@ func (p *filePicker) onListSelected(i widget.ListItemID) {
 	}
 	p.lastID = int(i)
 	p.lastSelAt = now
+	if int(i) < len(p.entries) && !p.entries[i].isDir {
+		p.nameBox.SetText(p.entries[i].name)
+	}
 }
 
 // activate 执行双击动作（主线程）。
@@ -116,10 +149,8 @@ func (p *filePicker) activate(i widget.ListItemID) {
 		p.enter(filepath.Join(p.cur, e.name))
 		return
 	}
-	path := filepath.Join(p.cur, e.name)
-	dir := p.cur
-	p.win.Close()
-	p.onPick(path, dir)
+	p.nameBox.SetText(e.name)
+	p.confirm()
 }
 
 // enter 进入指定目录并刷新列表（主线程）。
@@ -152,6 +183,7 @@ func (p *filePicker) enter(dir string) {
 	p.lastID = -1
 
 	p.pathBox.SetText(abs)
+	p.nameBox.SetText("")
 	p.list.Refresh()
 }
 
