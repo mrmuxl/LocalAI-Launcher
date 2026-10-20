@@ -32,6 +32,7 @@ type StatusPanel struct {
 	lastLogLabel *widget.Label
 	versionLabel *widget.Label
 	repoLink     *widget.Hyperlink
+	emailLabel   *widget.Label
 	startBtn     *widget.Button
 	stopBtn      *widget.Button
 }
@@ -46,6 +47,7 @@ func NewStatusPanel(onStart, onStop func()) *StatusPanel {
 		lastLogLabel: widget.NewLabel("（暂无）"),
 		versionLabel: widget.NewLabel("v" + version.Version),
 		repoLink:     widget.NewHyperlink("mrmuxl/LocalAI-Launcher", parseRepoURL()),
+		emailLabel:   widget.NewLabel(version.Email),
 	}
 	p.startBtn = widget.NewButton("启动", onStart)
 	p.stopBtn = widget.NewButton("停止", onStop)
@@ -66,21 +68,23 @@ func parseRepoURL() *url.URL {
 // statusLabelWidth 状态表格标签列统一宽度（状态/PID/运行时长/最新日志对齐）。
 const statusLabelWidth = 76
 
-// StatusRow 返回状态表格（grid 两栏布局：2 列 × 3 行，供右栏状态区使用）。
-// 版本行显示构建版本，项目行为可点击的 GitHub 链接。
+// StatusRow 返回状态表格（grid 左右两栏：左 = 运行状态四项，右 = 版本/项目/邮箱）。
 func (p *StatusPanel) StatusRow() fyne.CanvasObject {
-	row := func(l, v *widget.Label) fyne.CanvasObject {
+	labelRow := func(l *widget.Label, v fyne.CanvasObject) fyne.CanvasObject {
 		return container.NewHBox(newFixedWidth(l, statusLabelWidth), v)
 	}
-	projectRow := container.NewHBox(newFixedWidth(widget.NewLabel("项目"), statusLabelWidth), p.repoLink)
-	return container.NewGridWithColumns(2,
-		row(widget.NewLabel("状态"), p.stateLabel),
-		row(widget.NewLabel("PID"), p.pidLabel),
-		row(widget.NewLabel("运行时长"), p.uptimeLabel),
-		row(widget.NewLabel("最新日志"), p.lastLogLabel),
-		row(widget.NewLabel("版本"), p.versionLabel),
-		projectRow,
+	left := container.NewVBox(
+		labelRow(widget.NewLabel("状态"), p.stateLabel),
+		labelRow(widget.NewLabel("PID"), p.pidLabel),
+		labelRow(widget.NewLabel("运行时长"), p.uptimeLabel),
+		labelRow(widget.NewLabel("最新日志"), p.lastLogLabel),
 	)
+	right := container.NewVBox(
+		labelRow(widget.NewLabel("版本"), p.versionLabel),
+		labelRow(widget.NewLabel("项目"), p.repoLink),
+		labelRow(widget.NewLabel("邮箱"), p.emailLabel),
+	)
+	return container.NewGridWithColumns(2, left, right)
 }
 
 // Buttons 返回启动/停止按钮行（供右栏操作行使用）。

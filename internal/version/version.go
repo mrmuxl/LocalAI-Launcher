@@ -12,6 +12,9 @@ var Version = "0.1.0"
 // RepoURL 为项目主页（状态面板展示的可点击链接）。
 const RepoURL = "https://github.com/mrmuxl/LocalAI-Launcher"
 
+// Email 为维护者联系邮箱（状态面板与标题栏展示）。
+const Email = "xl@zhiwo.net"
+
 // Banner 返回启动时打印的版本横幅。
 func Banner() string {
 	return "LocalAI-launcher v" + Version

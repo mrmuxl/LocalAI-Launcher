@@ -48,8 +48,8 @@ func (a *App) buildLayout(window fyne.Window) {
 	)
 	top := container.NewVBox(actions, a.msgLbl)
 
-	statusArea := container.NewVBox(a.status.StatusRow(), errBox)
-	logArea := a.logv.Content() // *container.Scroll，可 SetMinSize
+	statusArea := container.NewVBox(errBox, a.status.StatusRow()) // 校验行在状态表格前面
+	logArea := a.logv.Content()                                   // *container.Scroll，可 SetMinSize
 	logArea.SetMinSize(fyne.NewSize(0, logMinHeight))
 	splitter := container.NewVSplit(statusArea, logArea)
 	splitter.Offset = 0.3 // 状态栏占 30%，日志栏占 70%，分割条可拖动
