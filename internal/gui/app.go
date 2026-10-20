@@ -74,7 +74,8 @@ type App struct {
 // 无存档时经文件选择框由用户指定（选择结果持久化，下次启动直接使用）。
 func NewApp() *App {
 	fyneApp := app.New()
-	window := fyneApp.NewWindow(windowTitle + " v" + version.Version)
+	// 标题栏为纯文本（系统不支持可点击链接），版本与项目主页一并展示。
+	window := fyneApp.NewWindow(windowTitle + " v" + version.Version + " · " + version.RepoURL)
 
 	a := &App{
 		fyneApp: fyneApp,
