@@ -16,9 +16,6 @@ const logMinHeight = 200
 
 // buildLayout 组装窗口内容并设置到 window（主线程，NewApp 构造期调用）。
 func (a *App) buildLayout(window fyne.Window) {
-	logArea := a.logv.Content() // *container.Scroll，可 SetMinSize
-	logArea.SetMinSize(fyne.NewSize(0, logMinHeight))
-
 	// 左栏双引擎 tab：校验行跟随当前选中 tab 显示。
 	tabs := container.NewAppTabs(
 		container.NewTabItem("NInfer", a.form.Content()),
@@ -40,20 +37,25 @@ func (a *App) buildLayout(window fyne.Window) {
 	}
 	syncErrVisible()
 
-	// 右栏顶部操作行：保存配置/重新加载/启动/停止（onSave/onLoad 已按当前 tab 分流）；
-	// 操作反馈（保存/加载/路径保存等消息）紧随操作行显示在右栏。
+	// 右栏顶部操作行：保存配置/配置加载/启动/停止（onSave/onLoad 已按当前 tab 分流）；
+	// 操作反馈（保存/加载/路径保存等消息）紧随操作行显示。
+	// 操作行之下用 VSplit 分成两栏：上 = 状态表格 + 校验行，下 = 日志区。
 	actions := container.NewHBox(
 		widget.NewButton("保存配置", a.onSave),
-		widget.NewButton("重新加载", a.onLoad),
+		widget.NewButton("配置加载", a.onLoad),
 		a.status.Buttons(),
 		layout.NewSpacer(),
 	)
+	top := container.NewVBox(actions, a.msgLbl)
 
+	statusArea := container.NewVBox(a.status.StatusRow(), errBox)
+	logArea := a.logv.Content() // *container.Scroll，可 SetMinSize
+	logArea.SetMinSize(fyne.NewSize(0, logMinHeight))
+	splitter := container.NewVSplit(statusArea, logArea)
+	splitter.Offset = 0.3 // 状态栏占 30%，日志栏占 70%，分割条可拖动
+
+	right := container.NewBorder(top, nil, nil, nil, splitter)
 	left := container.NewBorder(nil, nil, nil, nil, tabs)
-	right := container.NewVSplit(
-		container.NewVBox(actions, a.msgLbl, a.status.StatusRow(), errBox),
-		logArea)
-	right.Offset = 0.3 // 状态区占右栏 30%，日志占 70%，分割条可拖动
 	split := container.NewHSplit(left, right)
 	split.Offset = 0.5 // 左右栏各占一半，分割条可拖动调整
 	window.SetContent(container.NewBorder(nil, nil, nil, nil, split))
