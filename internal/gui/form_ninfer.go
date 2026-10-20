@@ -205,6 +205,9 @@ func NewNinferForm(window fyne.Window) *NinferForm {
 
 	f.errLabel = widget.NewLabel("✓ 配置有效")
 	f.errLabel.Wrapping = fyne.TextWrapWord
+	// 构造期用默认配置初始化控件（Select 需要初始选中值，否则收集到空串）；
+	// 此时 onChange 尚未接线，notifyChange 为 no-op。
+	f.SetFieldsFrom(config.DefaultConfig())
 	return f
 }
 
