@@ -85,9 +85,9 @@ func Test_ConfigPathFor_returnsExeDirFile(t *testing.T) {
 	if err != nil {
 		t.Skipf("os.Executable 不可用: %v", err)
 	}
-	want := filepath.Join(filepath.Dir(exe), "config.json")
-	if got := ConfigPathFor("config.json"); got != want {
-		t.Errorf("ConfigPathFor(config.json) = %q, want %q", got, want)
+	want := filepath.Join(filepath.Dir(exe), "ninfer.json")
+	if got := ConfigPathFor("ninfer.json"); got != want {
+		t.Errorf("ConfigPathFor(ninfer.json) = %q, want %q", got, want)
 	}
 	wantLlama := filepath.Join(filepath.Dir(exe), "llama.json")
 	if got := ConfigPathFor("llama.json"); got != wantLlama {

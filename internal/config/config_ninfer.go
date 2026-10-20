@@ -8,7 +8,7 @@
 // start-backend.ps1 ninfer 分支），默认值即该配方的值。
 package config
 
-// Config 是启动器持久化到 config.json 的完整配置。
+// Config 是启动器持久化到 ninfer.json 的完整配置。
 type Config struct {
 	// ── 服务（3）────────────────────────────
 	ListenHost  string `json:"listenHost"`  // 1：监听地址（--host）

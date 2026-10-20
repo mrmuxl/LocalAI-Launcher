@@ -1,8 +1,8 @@
 // workerpath.go 持久化用户通过文件选择框选定的 worker 可执行文件路径。
 //
-// 与 32 字段的业务配置（config.json）分离：worker 路径是启动器自身设置，
+// 与 32 字段的业务配置（ninfer.json）分离：worker 路径是启动器自身设置，
 // 不参与业务校验与表单，单独存档为启动器 exe 同级目录下的 worker.json。
-// 全部配置文件（config.json/llama.json/worker.json）均便携式存放于
+// 全部配置文件（ninfer.json/llama.json/worker.json）均便携式存放于
 // 启动器 exe 同级目录。
 package config
 
@@ -42,7 +42,7 @@ func WorkerSettingsPath() string {
 
 // ConfigPathFor 返回启动器 exe 同级目录下的指定配置文件名：
 // 配置持久化文件与启动器同目录（便携式，整个目录拷走即整套配置）。
-// filename 如 "config.json"（ninfer）或 "llama.json"（llama.cpp）。
+// filename 如 "ninfer.json"（NInfer 引擎）或 "llama.json"（llama.cpp 引擎）。
 func ConfigPathFor(filename string) string {
 	return filepath.Join(exeDir(), filename)
 }

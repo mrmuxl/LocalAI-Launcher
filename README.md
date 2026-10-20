@@ -1,6 +1,6 @@
 # NInfer Launcher
 
-NInfer 服务端（worker，`ninfer.exe`）的 Windows 桌面启动器：Fyne v2 中文图形界面，替代手工执行 `docs/scripts/windows/start-ninfer.ps1`，用表单完成参数配置、启动/停止进程与日志实时查看。
+NInfer 推理引擎的 Windows 桌面启动器（推理程序可执行文件名任意）：Fyne v2 中文图形界面，替代手工执行 `docs/scripts/windows/start-ninfer.ps1`，用表单完成参数配置、启动/停止进程与日志实时查看。
 
 ## 构建
 
@@ -24,7 +24,7 @@ make build-launcher
 
 全部配置文件便携式存放于启动器 exe 同级目录（整个目录拷走即整套配置，与推理程序位置无关）：
 
-- NInfer：启动器 exe 同级目录下的 `config.json`（32 字段）；
+- NInfer：启动器 exe 同级目录下的 `ninfer.json`（32 字段）；
 - llama.cpp：启动器 exe 同级目录下的 `llama.json`（46 字段）；
 - worker 路径存档：启动器 exe 同级目录下的 `worker.json`。
 
@@ -34,10 +34,10 @@ make build-launcher
 
 ## worker 路径
 
-启动器 exe 同级目录下的 `worker.json`：引导存档（记录两个引擎的推理程序在哪）。`workerPath` 存 NInfer 的 `ninfer.exe`，`llamaWorkerPath` 存 llama.cpp 的 worker exe；在对应 tab 的「推理程序」行输入路径回车或点「打开」选择时写入，仅保存可执行文件绝对路径，下次启动直接采用。存档指向的文件被删除时，启动会静默回退默认路径并提示，可重新指定。
+启动器 exe 同级目录下的 `worker.json`：引导存档（记录两个引擎的推理程序在哪）。`workerPath` 存 NInfer 引擎的推理程序路径（文件名任意），`llamaWorkerPath` 存 llama.cpp 引擎的推理程序路径（文件名任意）；在对应 tab 的「推理程序」行输入路径回车或点「打开」选择时写入，仅保存可执行文件绝对路径，下次启动直接采用。存档指向的文件被删除时，启动会静默回退默认路径并提示，可重新指定。
 
 ## 与 server 的关系
 
-- 启动器只是管理前端，不含任何服务端/推理逻辑，服务仍由 `ninfer.exe` 提供。
+- 启动器只是管理前端，不含任何服务端/推理逻辑，服务仍由 NInfer 推理程序提供。
 - 点「启动」时按「argv 构造契约」（见 `internal/argv`）把表单配置逐字翻译成 worker 命令行参数（固定段 + 条件段 + 缓存段）再启动进程；GUI 字段与 argv flag 一一对应。
 - 本仓库不修改 worker 源码；`docs/scripts/windows/*.ps1` 启动脚本与启动器是同一服务包的两条等价启动途径。

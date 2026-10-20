@@ -37,7 +37,7 @@ func Test_LoadConfig_when_pathEmpty_returnsDefaultsNoError(t *testing.T) {
 // Test_LoadConfig_when_jsonCorrupt_returnsError
 // 损坏 JSON → 返回明确 error（不 panic），且不覆盖原文件。
 func Test_LoadConfig_when_jsonCorrupt_returnsError(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.json")
+	path := filepath.Join(t.TempDir(), "ninfer.json")
 	if err := os.WriteFile(path, []byte("{ not json"), 0o644); err != nil {
 		t.Fatalf("write corrupt file: %v", err)
 	}
@@ -52,7 +52,7 @@ func Test_LoadConfig_when_jsonCorrupt_returnsError(t *testing.T) {
 // Test_LoadConfig_when_partialJSON_mergesOntoDefaults
 // 文件存在但字段缺失：以默认值为底，文件中出现的字段覆盖对应默认值。
 func Test_LoadConfig_when_partialJSON_mergesOntoDefaults(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.json")
+	path := filepath.Join(t.TempDir(), "ninfer.json")
 	partial := `{"port":9090,"concurrency":4,"kvType":"fp8"}`
 	if err := os.WriteFile(path, []byte(partial), 0o644); err != nil {
 		t.Fatalf("write partial file: %v", err)

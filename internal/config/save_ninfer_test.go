@@ -9,7 +9,7 @@ import (
 // Test_SaveConfig_when_roundTrip_preservesAll32Fields
 // 写入临时目录 → LoadConfig 读回 → 整结构相等（SaveConfig/LoadConfig JSON 往返）。
 func Test_SaveConfig_when_roundTrip_preservesAll32Fields(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "nested", "config.json")
+	path := filepath.Join(t.TempDir(), "nested", "ninfer.json")
 	cfg := DefaultConfig()
 	cfg.ListenHost = "0.0.0.0"
 	cfg.Port = 9090
@@ -32,7 +32,7 @@ func Test_SaveConfig_when_roundTrip_preservesAll32Fields(t *testing.T) {
 
 // Test_SaveConfig_when_parentDirsMissing_createsThem
 func Test_SaveConfig_when_parentDirsMissing_createsThem(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "a", "b", "c", "config.json")
+	path := filepath.Join(t.TempDir(), "a", "b", "c", "ninfer.json")
 
 	if err := SaveConfig(DefaultConfig(), path); err != nil {
 		t.Fatalf("SaveConfig: %v", err)
@@ -56,7 +56,7 @@ func Test_SaveConfig_when_pathComponentIsFile_returnsError(t *testing.T) {
 		t.Fatalf("creating blocker file: %v", err)
 	}
 
-	err := SaveConfig(DefaultConfig(), filepath.Join(blocker, "config.json"))
+	err := SaveConfig(DefaultConfig(), filepath.Join(blocker, "ninfer.json"))
 	if err == nil {
 		t.Fatal("SaveConfig under a regular file returned nil error, want error")
 	}

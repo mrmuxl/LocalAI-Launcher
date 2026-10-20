@@ -220,7 +220,7 @@ func (f *NinferForm) Content() fyne.CanvasObject {
 // 输入框回车提交路径；打开按钮弹文件选择框（回调由 App 注入）。
 func (f *NinferForm) buildWorkerPathRow(labelWidth float32) fyne.CanvasObject {
 	f.workerPathEntry = widget.NewEntry()
-	f.workerPathEntry.SetPlaceHolder("ninfer.exe 路径（输入后回车，或点「打开」选择）")
+	f.workerPathEntry.SetPlaceHolder("NInfer 推理程序路径（输入后回车，或点「打开」选择）")
 	f.workerPathEntry.OnSubmitted = func(text string) {
 		if f.onWorkerPathSet != nil {
 			f.onWorkerPathSet(text)

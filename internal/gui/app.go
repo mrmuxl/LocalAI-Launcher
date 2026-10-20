@@ -130,14 +130,14 @@ func (a *App) initWorkerPath() {
 		a.manager.SetPath(saved)
 		fyne.Do(func() {
 			a.form.SetWorkerPath(saved)
-			a.msgLbl.SetText("✓ 使用已保存的 ninfer.exe：" + saved)
+			a.msgLbl.SetText("✓ 使用已保存的推理程序：" + saved)
 		})
 	default:
 		if saved != "" {
 			log.Printf("已保存的 worker 路径不存在: %s，回退默认路径", saved)
 		}
 		fyne.Do(func() {
-			a.msgLbl.SetText("未指定推理程序，使用默认路径：" + a.manager.Path() + "；点「打开」选择 ninfer.exe")
+			a.msgLbl.SetText("未指定推理程序，使用默认路径：" + a.manager.Path() + "；点「打开」选择推理程序")
 		})
 	}
 
@@ -238,7 +238,7 @@ func (a *App) applyWorkerChoice(path string) {
 	a.manager.SetPath(path)
 	fyne.Do(func() {
 		a.form.SetWorkerPath(path)
-		a.msgLbl.SetText("✓ ninfer.exe 路径已保存，下次启动直接使用：" + path)
+		a.msgLbl.SetText("✓ 推理程序路径已保存，下次启动直接使用：" + path)
 	})
 }
 
@@ -293,7 +293,7 @@ func (a *App) Run() {
 // doLoadInitial 首次载入两个引擎的配置（initWorkerPath 末尾调用，路径已确定）。
 // 各引擎配置放启动器 exe 同级目录；失败回退默认值，错误经 log.Printf 留痕。
 func (a *App) doLoadInitial() {
-	path := config.ConfigPathFor("config.json")
+	path := config.ConfigPathFor("ninfer.json")
 	cfg, err := config.LoadConfig(path)
 	if err != nil {
 		log.Printf("加载配置 %s 失败: %v，使用默认配置", path, err)
@@ -536,7 +536,7 @@ func (a *App) doSave(cfg config.Config, errs []string) {
 		})
 		return
 	}
-	path := config.ConfigPathFor("config.json")
+	path := config.ConfigPathFor("ninfer.json")
 	if err := config.SaveConfig(cfg, path); err != nil {
 		log.Printf("保存配置失败: %v", err)
 		fyne.Do(func() { a.msgLbl.SetText("保存失败：" + err.Error()) })
@@ -562,7 +562,7 @@ func (a *App) onLoad() {
 		return
 	}
 	go func() {
-		path := config.ConfigPathFor("config.json")
+		path := config.ConfigPathFor("ninfer.json")
 		cfg, err := config.LoadConfig(path)
 		if err != nil {
 			log.Printf("加载配置 %s 失败: %v", path, err)

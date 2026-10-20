@@ -2,7 +2,7 @@
 //
 // 与 ninfer 的 32 字段 Config（config_ninfer.go）完全分离：字段集、默认值、
 // argv flag 都不同（见 H:\models\Qwen3.8-27B-GSQ_S-MTP.cmd 启动脚本）。
-// 持久化为启动器 exe 同级目录下的 llama.json（与 config.json 同目录不同名）。
+// 持久化为启动器 exe 同级目录下的 llama.json（与 ninfer.json 同目录不同名）。
 package config
 
 import (
