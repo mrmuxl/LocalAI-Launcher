@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -38,9 +39,19 @@ type filePicker struct {
 	cur     string   // 当前目录
 	exts    []string // 允许的扩展名（含点，小写）；空 = 全部文件
 
+	places      []placeItem // 左侧位置列表（磁盘 + 常用目录）
+	placesList  *widget.List
+	placeSelIdx int // 左侧当前选中项（-1 = 无）
+
 	lastID    int                           // 上次单击的列表项（双击检测）
 	lastSelAt time.Time                     // 上次单击时间
 	onPick    func(path string, dir string) // 确认选择：完整路径 + 所在目录
+}
+
+// placeItem 左侧位置列表项：显示名 + 跳转目标目录。
+type placeItem struct {
+	name string
+	path string
 }
 
 // newFilePicker 构建文件选择窗口（主线程调用，不自动显示）。
@@ -87,6 +98,25 @@ func newFilePicker(app fyne.App, title, start string, exts []string, onPick func
 		p.onListSelected(i)
 	}
 
+	p.places = buildPlaces()
+	p.placeSelIdx = -1
+	p.placesList = widget.NewList(
+		func() int { return len(p.places) },
+		func() fyne.CanvasObject { return widget.NewLabel("") },
+		func(i widget.ListItemID, o fyne.CanvasObject) {
+			o.(*widget.Label).SetText(p.places[i].name)
+		},
+	)
+	p.placesList.OnSelected = func(i widget.ListItemID) {
+		if int(i) >= len(p.places) {
+			return
+		}
+		p.placeSelIdx = int(i)
+		if p.places[i].path != p.cur {
+			p.enter(p.places[i].path)
+		}
+	}
+
 	cancelBtn := widget.NewButton("取消", func() { p.win.Close() })
 	confirmBtn := widget.NewButton("选择", func() { p.confirm() })
 	confirmBtn.Importance = widget.HighImportance
@@ -97,11 +127,45 @@ func newFilePicker(app fyne.App, title, start string, exts []string, onPick func
 
 	p.win.SetContent(container.NewBorder(
 		container.NewHBox(upBtn, p.pathBox),
-		bottom, nil, nil,
+		bottom,
+		newFixedWidth(p.placesList, 150), nil,
 		p.list,
 	))
 	p.enter(start)
 	return p
+}
+
+// buildPlaces 枚举左侧位置列表：Windows 枚举全部盘符，再加主目录/桌面/
+// 文档/下载（仅保留实际存在的项）。
+func buildPlaces() []placeItem {
+	var places []placeItem
+	if runtime.GOOS == "windows" {
+		for c := byte('A'); c <= 'Z'; c++ {
+			drive := string(c) + `:\`
+			if st, err := os.Stat(drive); err == nil && st.IsDir() {
+				places = append(places, placeItem{name: drive, path: drive})
+			}
+		}
+	} else if st, err := os.Stat("/"); err == nil && st.IsDir() {
+		places = append(places, placeItem{name: "/", path: "/"})
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		for _, it := range []struct{ label, sub string }{
+			{"主目录", ""},
+			{"桌面", "Desktop"},
+			{"文档", "Documents"},
+			{"下载", "Downloads"},
+		} {
+			path := home
+			if it.sub != "" {
+				path = filepath.Join(home, it.sub)
+			}
+			if st, err := os.Stat(path); err == nil && st.IsDir() {
+				places = append(places, placeItem{name: it.label, path: path})
+			}
+		}
+	}
+	return places
 }
 
 // confirm 用文件名框当前内容确认选择（主线程）：文件存在且匹配过滤才回调。
@@ -184,7 +248,25 @@ func (p *filePicker) enter(dir string) {
 
 	p.pathBox.SetText(abs)
 	p.nameBox.SetText("")
+	p.syncPlaceSelection(abs)
 	p.list.Refresh()
+}
+
+// syncPlaceSelection 让左侧位置列表跟随当前目录：目录命中某个位置则选中，
+// 否则取消选中（手动浏览子目录时左侧不误亮）。
+func (p *filePicker) syncPlaceSelection(dir string) {
+	for i, pl := range p.places {
+		if pl.path == dir {
+			if p.placeSelIdx != int(i) {
+				p.placesList.Select(i) // 触发 OnSelected：目录相同不再 enter
+			}
+			return
+		}
+	}
+	if p.placeSelIdx != -1 {
+		p.placeSelIdx = -1
+		p.placesList.UnselectAll()
+	}
 }
 
 // matchExt 判断文件名是否匹配扩展名过滤（空 exts = 全部通过）。

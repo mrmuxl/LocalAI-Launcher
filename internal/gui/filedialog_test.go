@@ -3,6 +3,7 @@ package gui
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"fyne.io/fyne/v2/test"
@@ -59,6 +60,26 @@ func TestFilePicker_enter(t *testing.T) {
 		if p.entries[i] != w {
 			t.Fatalf("第 %d 项不一致: want %+v, got %+v", i, w, p.entries[i])
 		}
+	}
+}
+
+// TestBuildPlaces 位置列表：Windows 至少含一个盘符且全部存在；主目录必含。
+func TestBuildPlaces(t *testing.T) {
+	places := buildPlaces()
+	if len(places) == 0 {
+		t.Fatal("位置列表不应为空")
+	}
+	hasHome := false
+	for _, pl := range places {
+		if st, err := os.Stat(pl.path); err != nil || !st.IsDir() {
+			t.Fatalf("位置 %q(%s) 不存在或不是目录", pl.name, pl.path)
+		}
+		if pl.name == "主目录" {
+			hasHome = true
+		}
+	}
+	if runtime.GOOS == "windows" && !hasHome {
+		t.Fatal("Windows 下应包含主目录")
 	}
 }
 
