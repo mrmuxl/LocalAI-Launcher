@@ -99,7 +99,7 @@ var llamaFieldDefs = []llamaFieldDef{
 // 所有方法必须运行在主线程（Fyne 约束）。
 type LlamaForm struct {
 	window   fyne.Window
-	content  fyne.CanvasObject
+	content  *container.Scroll
 	entries  map[string]*widget.Entry
 	checks   map[string]*widget.Check
 	selects  map[string]*widget.Select
@@ -187,7 +187,12 @@ func NewLlamaForm(window fyne.Window) *LlamaForm {
 		}
 		sections = append(sections, row(d.label, controls[d.name], !isCheck && !isSelect))
 	}
-	f.content = container.NewScroll(container.NewVBox(sections...))
+	inner := container.NewVBox(sections...)
+	f.content = container.NewScroll(inner)
+	// 最小宽度 = 表单内容自然宽：HSplit 拖动时左栏不会被压窄到覆盖内容。
+	if w := inner.MinSize().Width; w > 0 {
+		f.content.SetMinSize(fyne.NewSize(w, 0))
+	}
 
 	f.errLabel = widget.NewLabel("✓ 配置有效")
 	f.errLabel.Wrapping = fyne.TextWrapWord
