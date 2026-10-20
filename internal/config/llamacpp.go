@@ -147,6 +147,10 @@ func LoadLlamaConfig(path string) (LlamaConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
+			// 缺文件→默认值；但模型/视觉/模板路径不猜默认：为空，等用户指定后写入 json。
+			cfg.ModelPath = ""
+			cfg.MmprojPath = ""
+			cfg.ChatTemplateFile = ""
 			return cfg, nil
 		}
 		return LlamaConfig{}, fmt.Errorf("读取 llama 配置 %s 失败: %w", path, err)

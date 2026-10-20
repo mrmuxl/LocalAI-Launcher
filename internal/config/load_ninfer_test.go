@@ -16,8 +16,13 @@ func Test_LoadConfig_when_fileMissing_returnsDefaultsNoError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig(%q) unexpected error: %v", path, err)
 	}
-	if want := DefaultConfig(); cfg != want {
-		t.Errorf("LoadConfig(missing) = %+v, want default %+v", cfg, want)
+	want := DefaultConfig()
+	want.ModelPath = "" // 缺文件时模型路径不猜默认，为空等用户指定
+	if cfg != want {
+		t.Errorf("LoadConfig(missing) = %+v, want %+v", cfg, want)
+	}
+	if cfg.ModelPath != "" {
+		t.Errorf("LoadConfig(missing).ModelPath = %q, want empty", cfg.ModelPath)
 	}
 }
 
@@ -29,8 +34,10 @@ func Test_LoadConfig_when_pathEmpty_returnsDefaultsNoError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig(\"\") unexpected error: %v", err)
 	}
-	if want := DefaultConfig(); cfg != want {
-		t.Errorf("LoadConfig(\"\") = %+v, want default %+v", cfg, want)
+	want := DefaultConfig()
+	want.ModelPath = "" // 缺文件时模型路径不猜默认，为空等用户指定
+	if cfg != want {
+		t.Errorf("LoadConfig(\"\") = %+v, want %+v", cfg, want)
 	}
 }
 

@@ -16,7 +16,9 @@ func LoadConfig(path string) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return cfg, nil // 缺文件→默认值
+			// 缺文件→默认值；但模型路径不猜默认：为空，等用户指定后写入 json。
+			cfg.ModelPath = ""
+			return cfg, nil
 		}
 		return Config{}, fmt.Errorf("读取配置文件 %s 失败: %w", path, err)
 	}

@@ -63,8 +63,12 @@ func Test_LoadLlamaConfig_when_missing_returnsDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadLlamaConfig(missing) unexpected error: %v", err)
 	}
-	if cfg != DefaultLlamaConfig() {
-		t.Error("missing file should yield defaults")
+	want := DefaultLlamaConfig()
+	want.ModelPath = "" // 缺文件时模型/视觉/模板路径不猜默认，为空等用户指定
+	want.MmprojPath = ""
+	want.ChatTemplateFile = ""
+	if cfg != want {
+		t.Error("missing file should yield defaults with empty path fields")
 	}
 }
 
