@@ -10,7 +10,6 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	"llmlauncher/internal/process"
@@ -67,19 +66,20 @@ func parseRepoURL() *url.URL {
 // statusLabelWidth 状态表格标签列统一宽度（状态/PID/运行时长/最新日志对齐）。
 const statusLabelWidth = 76
 
-// StatusRow 返回状态表格（6 行两列：固定宽标签列 + 值列，供右栏状态区使用）。
+// StatusRow 返回状态表格（grid 两栏布局：2 列 × 3 行，供右栏状态区使用）。
 // 版本行显示构建版本，项目行为可点击的 GitHub 链接。
 func (p *StatusPanel) StatusRow() fyne.CanvasObject {
 	row := func(l, v *widget.Label) fyne.CanvasObject {
-		return container.NewHBox(newFixedWidth(l, statusLabelWidth), v, layout.NewSpacer())
+		return container.NewHBox(newFixedWidth(l, statusLabelWidth), v)
 	}
-	return container.NewVBox(
+	projectRow := container.NewHBox(newFixedWidth(widget.NewLabel("项目"), statusLabelWidth), p.repoLink)
+	return container.NewGridWithColumns(2,
 		row(widget.NewLabel("状态"), p.stateLabel),
 		row(widget.NewLabel("PID"), p.pidLabel),
 		row(widget.NewLabel("运行时长"), p.uptimeLabel),
 		row(widget.NewLabel("最新日志"), p.lastLogLabel),
 		row(widget.NewLabel("版本"), p.versionLabel),
-		container.NewHBox(newFixedWidth(widget.NewLabel("项目"), statusLabelWidth), p.repoLink, layout.NewSpacer()),
+		projectRow,
 	)
 }
 
