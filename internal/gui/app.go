@@ -105,6 +105,7 @@ func NewApp() *App {
 	a.llamaForm.onOpenModel = a.pickLlamaModel
 	a.llamaForm.onOpenMmproj = a.pickLlamaMmproj
 	a.llamaForm.onOpenChatTpl = a.pickLlamaChatTemplate
+	a.llamaForm.onOpenPreset = a.pickLlamaPreset
 
 	// 状态面板：启动/停止回调注入（主线程回调，立即返回）。
 	a.status = NewStatusPanel(a.onStart, a.onStop)
@@ -220,6 +221,14 @@ func (a *App) pickLlamaMmproj() {
 func (a *App) pickLlamaChatTemplate() {
 	a.pickWithDialog("选择聊天模板文件", []string{".jinja", ".j2", ".txt"}, func(path string) {
 		fyne.Do(func() { a.llamaForm.SetChatTemplatePath(path) })
+	})
+}
+
+// pickLlamaPreset 弹出预设文件选择框（主线程，按钮回调）：
+// 过滤 .ini，选择结果回填 llama 表单预设文件路径输入框。
+func (a *App) pickLlamaPreset() {
+	a.pickWithDialog("选择模型预设文件", []string{".ini"}, func(path string) {
+		fyne.Do(func() { a.llamaForm.SetModelsPreset(path) })
 	})
 }
 

@@ -29,8 +29,13 @@ func BuildLlamaArgs(cfg config.LlamaConfig) []string {
 	args := make([]string, 0, 64)
 
 	// 1. 固定段：顺序与 flag 名逐字锁定（对齐 cmd 脚本续行顺序）
+	if cfg.StartMode == "route" {
+		// route 模式：模型由预设文件（--models-preset）决定，不传 -m。
+		args = append(args, "--models-preset", cfg.ModelsPreset)
+	} else {
+		args = append(args, "-m", cfg.ModelPath)
+	}
 	args = append(args,
-		"-m", cfg.ModelPath,
 		"--alias", cfg.Alias,
 		"--host", cfg.Host,
 		"--port", strconv.Itoa(cfg.Port),
@@ -90,7 +95,8 @@ func BuildLlamaArgs(cfg config.LlamaConfig) []string {
 	}
 
 	// 3. 条件段：路径/模板非空才传
-	if cfg.MmprojPath != "" {
+	// route 模式：mmproj 由预设文件决定，不传 --mmproj。
+	if cfg.MmprojPath != "" && cfg.StartMode != "route" {
 		args = append(args, "--mmproj", cfg.MmprojPath)
 	}
 	if cfg.ImageMinTokens > 0 {

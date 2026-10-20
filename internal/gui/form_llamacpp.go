@@ -107,12 +107,19 @@ type LlamaForm struct {
 
 	workerPathEntry *widget.Entry // llama worker 可执行文件路径输入框
 
+	startModeSelect *widget.Select    // 启动模式：单模型 / route 预设
+	presetEntry     *widget.Entry     // 预设文件路径输入框（route 模式）
+	modelRow        fyne.CanvasObject // 模型文件行（route 模式下隐藏）
+	mmprojRow       fyne.CanvasObject // 视觉模型行（route 模式下隐藏）
+	presetRow       fyne.CanvasObject // 预设文件行（单模型模式下隐藏）
+
 	onChange        func()            // App 注入：字段变化时触发后台校验
 	onOpenWorker    func()            // App 注入：打开按钮 → 文件选择窗口
 	onWorkerPathSet func(path string) // App 注入：输入框回车提交路径
 	onOpenModel     func()            // App 注入：模型文件「打开」按钮 → 文件选择窗口
 	onOpenMmproj    func()            // App 注入：视觉模型「打开」按钮 → 文件选择窗口
 	onOpenChatTpl   func()            // App 注入：聊天模板文件「打开」按钮 → 文件选择窗口
+	onOpenPreset    func()            // App 注入：预设文件「打开」按钮 → 文件选择窗口
 }
 
 // NewLlamaForm 构建 9 组表单（垂直一排、带分组标题、整体滚动）并返回。
@@ -168,17 +175,24 @@ func NewLlamaForm(window fyne.Window) *LlamaForm {
 			sections = append(sections,
 				widget.NewLabelWithStyle(d.group, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 			if d.group == "服务" {
+				// 启动模式 Select 在「服务」组之下、「推理引擎」行之上。
+				sections = append(sections, f.buildStartModeRow(labelWidth))
 				sections = append(sections, f.buildWorkerPathRow(labelWidth))
+			}
+			if d.group == "模型" {
+				sections = append(sections, f.buildPresetPathRow(labelWidth))
 			}
 		}
 		_, isCheck := f.checks[d.name]
 		_, isSelect := f.selects[d.name]
 		if d.name == "ModelPath" {
-			sections = append(sections, f.buildModelPathRow(labelWidth))
+			f.modelRow = f.buildModelPathRow(labelWidth)
+			sections = append(sections, f.modelRow)
 			continue
 		}
 		if d.name == "MmprojPath" {
-			sections = append(sections, f.buildMmprojPathRow(labelWidth))
+			f.mmprojRow = f.buildMmprojPathRow(labelWidth)
+			sections = append(sections, f.mmprojRow)
 			continue
 		}
 		if d.name == "ChatTemplateFile" {
@@ -210,6 +224,82 @@ func (f *LlamaForm) Content() fyne.CanvasObject {
 // ErrLabel 返回校验状态行（供窗口布局使用）。
 func (f *LlamaForm) ErrLabel() fyne.CanvasObject {
 	return f.errLabel
+}
+
+// startModeLabel 是「启动模式」Select 的选项文案与配置值的映射。
+func startModeLabel(mode string) string {
+	if mode == "route" {
+		return "route 预设（models-preset）"
+	}
+	return "单模型"
+}
+
+// buildStartModeRow 构建「启动模式」行：Select 切换单模型 / route 预设。
+// 切换时联动模型/视觉/预设行的可见性并触发校验。
+func (f *LlamaForm) buildStartModeRow(labelWidth float32) fyne.CanvasObject {
+	f.startModeSelect = widget.NewSelect([]string{"单模型", "route 预设（models-preset）"}, func(string) {
+		f.applyStartModeVisibility()
+		f.notifyChange()
+	})
+	return container.NewHBox(
+		newFixedWidth(widget.NewLabel("启动模式"), labelWidth),
+		f.startModeSelect,
+		layout.NewSpacer(),
+	)
+}
+
+// buildPresetPathRow 构建「预设文件」行：标签 + 固定宽路径输入框 + 打开按钮。
+// 仅 route 模式可见（可见性由 applyStartModeVisibility 控制）。
+func (f *LlamaForm) buildPresetPathRow(labelWidth float32) fyne.CanvasObject {
+	f.presetEntry = widget.NewEntry()
+	f.presetEntry.SetPlaceHolder("预设文件路径（.ini，输入后回车，或点「打开」选择）")
+	f.presetEntry.OnChanged = func(string) { f.notifyChange() }
+	openBtn := widget.NewButton("打开", func() {
+		if f.onOpenPreset != nil {
+			f.onOpenPreset()
+		}
+	})
+	f.presetRow = container.NewHBox(
+		newFixedWidth(widget.NewLabel("预设文件（--models-preset）"), labelWidth),
+		newFixedWidth(f.presetEntry, entryWidth),
+		openBtn,
+		layout.NewSpacer(),
+	)
+	return f.presetRow
+}
+
+// applyStartModeVisibility 按启动模式联动行可见性：
+// route → 隐藏模型/视觉行、显示预设文件行；单模型 → 相反。
+func (f *LlamaForm) applyStartModeVisibility() {
+	route := f.startModeSelect != nil && f.startModeSelect.Selected == "route 预设（models-preset）"
+	if f.modelRow != nil {
+		if route {
+			f.modelRow.Hide()
+		} else {
+			f.modelRow.Show()
+		}
+	}
+	if f.mmprojRow != nil {
+		if route {
+			f.mmprojRow.Hide()
+		} else {
+			f.mmprojRow.Show()
+		}
+	}
+	if f.presetRow != nil {
+		if route {
+			f.presetRow.Show()
+		} else {
+			f.presetRow.Hide()
+		}
+	}
+}
+
+// SetModelsPreset 回填预设文件路径输入框（主线程；文件选择窗口回调使用）。
+func (f *LlamaForm) SetModelsPreset(p string) {
+	if f.presetEntry != nil {
+		f.presetEntry.SetText(p)
+	}
 }
 
 // buildWorkerPathRow 构建「推理引擎」行：标签 + 固定宽路径输入框 + 打开按钮。
@@ -336,6 +426,10 @@ func (f *LlamaForm) GroupNames() []string {
 
 // SetFieldsFrom 用配置填充全部控件（主线程）。
 func (f *LlamaForm) SetFieldsFrom(cfg config.LlamaConfig) {
+	f.startModeSelect.SetSelected(startModeLabel(cfg.StartMode))
+	f.presetEntry.SetText(cfg.ModelsPreset)
+	f.applyStartModeVisibility()
+
 	f.entries["Host"].SetText(cfg.Host)
 	f.entries["Port"].SetText(strconv.Itoa(cfg.Port))
 	f.entries["Threads"].SetText(strconv.Itoa(cfg.Threads))
@@ -397,6 +491,13 @@ func (f *LlamaForm) SetFieldsFrom(cfg config.LlamaConfig) {
 func (f *LlamaForm) CollectConfig() (config.LlamaConfig, []string) {
 	var cfg config.LlamaConfig
 	var errs []string
+
+	if f.startModeSelect.Selected == "route 预设（models-preset）" {
+		cfg.StartMode = "route"
+	} else {
+		cfg.StartMode = "single"
+	}
+	cfg.ModelsPreset = f.presetEntry.Text
 
 	cfg.Host = f.entries["Host"].Text
 	cfg.Port, errs = collectInt(f.entries["Port"], "监听端口", cfg.Port, errs)

@@ -15,6 +15,10 @@ import (
 // LlamaConfig llama.cpp 引擎的 46 个配置字段（对应 Qwen3.8-27B-GSQ_S-MTP.cmd）。
 type LlamaConfig struct {
 	// 服务
+	// 启动模式
+	StartMode    string `json:"startMode"`    // "single"（单模型直启）| "route"（--models-preset 预设）
+	ModelsPreset string `json:"modelsPreset"` // --models-preset（route 模式，空=不传）
+
 	Host     string `json:"host"`     // --host
 	Port     int    `json:"port"`     // --port
 	Threads  int    `json:"threads"`  // -t
@@ -82,6 +86,9 @@ type LlamaConfig struct {
 // DefaultLlamaConfig 返回 llama.cpp 引擎的默认值（Qwen3.8-27B-GSQ_S-MTP.cmd 配方）。
 func DefaultLlamaConfig() LlamaConfig {
 	return LlamaConfig{
+		StartMode:    "single",
+		ModelsPreset: "",
+
 		Host:     "0.0.0.0",
 		Port:     8080,
 		Threads:  4,
@@ -183,12 +190,23 @@ func SaveLlamaConfig(cfg LlamaConfig, path string) error {
 // 含模型文件存在性检查（fs IO），只可在 goroutine 中调用。
 func ValidateLlama(cfg LlamaConfig) []string {
 	var errs []string
-	if cfg.ModelPath == "" {
-		errs = append(errs, "模型路径（-m）不能为空")
-	} else if st, err := os.Stat(cfg.ModelPath); err != nil {
-		errs = append(errs, "模型文件不存在："+cfg.ModelPath)
-	} else if st.IsDir() {
-		errs = append(errs, "模型路径是目录，需要 GGUF 文件："+cfg.ModelPath)
+	if cfg.StartMode == "route" {
+		// route 模式：模型/视觉由预设文件决定，只查预设文件。
+		if cfg.ModelsPreset == "" {
+			errs = append(errs, "route 模式需要预设文件（--models-preset）")
+		} else if st, err := os.Stat(cfg.ModelsPreset); err != nil {
+			errs = append(errs, "预设文件不存在："+cfg.ModelsPreset)
+		} else if st.IsDir() {
+			errs = append(errs, "预设路径是目录，需要 .ini 文件："+cfg.ModelsPreset)
+		}
+	} else {
+		if cfg.ModelPath == "" {
+			errs = append(errs, "模型路径（-m）不能为空")
+		} else if st, err := os.Stat(cfg.ModelPath); err != nil {
+			errs = append(errs, "模型文件不存在："+cfg.ModelPath)
+		} else if st.IsDir() {
+			errs = append(errs, "模型路径是目录，需要 GGUF 文件："+cfg.ModelPath)
+		}
 	}
 	if cfg.Port < 1 || cfg.Port > 65535 {
 		errs = append(errs, "监听端口必须在 1..65535")
