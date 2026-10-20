@@ -250,6 +250,7 @@ func (f *NinferForm) buildWorkerPathRow(labelWidth float32) fyne.CanvasObject {
 // buildModelPathRow 构建「模型文件」行：标签 + 固定宽路径输入框 + 打开按钮。
 // 打开按钮弹文件选择框（回调由 App 注入），选择结果回填输入框（随配置保存）。
 func (f *NinferForm) buildModelPathRow(labelWidth float32) fyne.CanvasObject {
+	f.entries["ModelPath"].SetPlaceHolder("模型文件路径（.ninfer，输入后回车，或点「打开」选择）")
 	openBtn := widget.NewButton("打开", func() {
 		if f.onOpenModel != nil {
 			f.onOpenModel()

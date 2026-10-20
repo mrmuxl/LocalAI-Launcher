@@ -244,6 +244,7 @@ func (f *LlamaForm) SetWorkerPath(p string) {
 // buildModelPathRow 构建「模型文件」行：标签 + 固定宽路径输入框 + 打开按钮。
 // 打开按钮弹文件选择窗口（回调由 App 注入），选择结果回填输入框（随配置保存）。
 func (f *LlamaForm) buildModelPathRow(labelWidth float32) fyne.CanvasObject {
+	f.entries["ModelPath"].SetPlaceHolder("模型文件路径（.gguf，输入后回车，或点「打开」选择）")
 	openBtn := widget.NewButton("打开", func() {
 		if f.onOpenModel != nil {
 			f.onOpenModel()
@@ -259,6 +260,7 @@ func (f *LlamaForm) buildModelPathRow(labelWidth float32) fyne.CanvasObject {
 
 // buildMmprojPathRow 构建「视觉模型」行：标签 + 固定宽路径输入框 + 打开按钮。
 func (f *LlamaForm) buildMmprojPathRow(labelWidth float32) fyne.CanvasObject {
+	f.entries["MmprojPath"].SetPlaceHolder("视觉模型路径（.gguf，可选，空 = 不传）")
 	openBtn := widget.NewButton("打开", func() {
 		if f.onOpenMmproj != nil {
 			f.onOpenMmproj()
@@ -288,6 +290,7 @@ func (f *LlamaForm) SetMmprojPath(p string) {
 
 // buildChatTemplatePathRow 构建「聊天模板文件」行：标签 + 固定宽路径输入框 + 打开按钮。
 func (f *LlamaForm) buildChatTemplatePathRow(labelWidth float32) fyne.CanvasObject {
+	f.entries["ChatTemplateFile"].SetPlaceHolder("聊天模板路径（.jinja/.j2/.txt，可选，空 = 不传）")
 	openBtn := widget.NewButton("打开", func() {
 		if f.onOpenChatTpl != nil {
 			f.onOpenChatTpl()
