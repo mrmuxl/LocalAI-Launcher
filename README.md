@@ -1,6 +1,6 @@
 # NInfer Launcher
 
-NInfer 推理引擎的 Windows 桌面启动器（推理程序可执行文件名任意）：Fyne v2 中文图形界面，替代手工执行 `docs/scripts/windows/start-ninfer.ps1`，用表单完成参数配置、启动/停止进程与日志实时查看。
+NInfer 和llama.cpp 推理引擎的 Windows 桌面启动器（推理程序可执行文件名任意）：Fyne v2 中文图形界面，替代手工执行 `docs/scripts/windows/start-ninfer.ps1`，用表单完成参数配置、启动/停止进程与日志实时查看。
 
 ## 构建
 

@@ -22,10 +22,13 @@ type LogView struct {
 }
 
 // NewLogView 构建日志视图；ring 与进程管理器共享同一实例。
+// RichText 开启按词自动换行：长日志行在容器宽度内折行，不横向溢出。
 func NewLogView(ring *process.RingLog) *LogView {
 	seg := &widget.TextSegment{Text: "（暂无日志输出）"}
+	rich := widget.NewRichText(seg)
+	rich.Wrapping = fyne.TextWrapWord
 	return &LogView{
-		rich: widget.NewRichText(seg),
+		rich: rich,
 		seg:  seg,
 		ring: ring,
 	}
