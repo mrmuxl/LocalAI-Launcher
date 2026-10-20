@@ -9,6 +9,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -103,10 +104,17 @@ func LoadLastPickDir() (string, error) {
 
 // saveWorkerPathField 读出存档、应用字段更新函数后整体写回。
 func saveWorkerPathField(apply func(rec *WorkerPathRecord)) (string, error) {
-	path := WorkerSettingsPath()
+	return saveWorkerPathFieldTo(WorkerSettingsPath(), apply)
+}
+
+// saveWorkerPathFieldTo 同 saveWorkerPathField，但存档路径可注入（测试用）。
+// 存档损坏时不继承旧值、直接用新值覆盖：worker.json 是启动器自身设置，
+// 若因损坏而保存失败，用户每次启动都要重新选择推理引擎。
+func saveWorkerPathFieldTo(path string, apply func(rec *WorkerPathRecord)) (string, error) {
 	rec, err := loadWorkerRecordFrom(path)
 	if err != nil {
-		return path, err
+		log.Printf("worker 路径存档 %s 损坏（%v），将用新值覆盖", path, err)
+		rec = WorkerPathRecord{}
 	}
 	apply(&rec)
 	if err := saveWorkerRecordTo(path, rec); err != nil {

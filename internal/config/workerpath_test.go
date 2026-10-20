@@ -145,3 +145,26 @@ func TestLoadWorkerPathCorrupt(t *testing.T) {
 		t.Fatalf("错误信息应包含「解析」, got %v", err)
 	}
 }
+
+// TestSaveWorkerPathFieldTo_overwritesCorrupted 存档损坏时保存应成功覆盖，
+// 而不是永久失败（否则用户每次启动都要重新选择推理引擎）。
+func TestSaveWorkerPathFieldTo_overwritesCorrupted(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "worker.json")
+	if err := os.WriteFile(file, []byte("{corrupted"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	want := `C:\x\ninfer.exe`
+	if _, err := saveWorkerPathFieldTo(file, func(rec *WorkerPathRecord) { rec.WorkerPath = want }); err != nil {
+		t.Fatalf("损坏存档上保存应成功覆盖, got %v", err)
+	}
+
+	rec, err := loadWorkerRecordFrom(file)
+	if err != nil {
+		t.Fatalf("覆盖后读取失败: %v", err)
+	}
+	if rec.WorkerPath != want {
+		t.Fatalf("覆盖结果不一致: want %q, got %q", want, rec.WorkerPath)
+	}
+}
