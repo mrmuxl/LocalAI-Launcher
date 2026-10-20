@@ -15,7 +15,7 @@ func TestVersionConst(t *testing.T) {
 // TestBanner 断言 Banner 返回固定的版本横幅。
 func TestBanner(t *testing.T) {
 	got := Banner()
-	want := "ninfer-launcher v0.1.0"
+	want := "LocalAI-launcher v0.1.0"
 	if got != want {
 		t.Errorf("Banner() = %q, want %q", got, want)
 	}

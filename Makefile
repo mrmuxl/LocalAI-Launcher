@@ -1,5 +1,5 @@
 BIN_DIR       := bin
-LAUNCHER_NAME := ninfer-launcher
+LAUNCHER_NAME := LocalAI-launcher
 LAUNCHER_CMD  := ./cmd/launcher
 
 .PHONY: build-launcher test lint fmt vet tidy

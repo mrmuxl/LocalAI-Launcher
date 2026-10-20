@@ -10,11 +10,11 @@ NInfer 推理引擎的 Windows 桌面启动器（推理程序可执行文件名�
 make build-launcher
 ```
 
-产物为 `bin/ninfer-launcher.exe`。
+产物为 `bin/LocalAI-launcher.exe`。
 
 ## 运行
 
-1. 双击运行 `bin/ninfer-launcher.exe`。窗口标题「LocalAI 启动器」，终端输出版本横幅 `ninfer-launcher v0.1.0`。
+1. 双击运行 `bin/LocalAI-launcher.exe`。窗口标题「LocalAI 启动器」，终端输出版本横幅 `LocalAI-launcher v0.1.0`。
 2. 左栏双引擎 tab：**NInfer**（32 字段，对齐 start-ninfer.bat 默认配方）与 **llama.cpp**（46 字段，对齐 Qwen3.8-27B-GSQ_S-MTP.cmd 启动脚本），各自独立表单、独立推理程序行与配置。每个 tab 的「服务」组下有「推理程序」行指定该引擎的 worker 可执行文件：输入路径后回车，或点「打开」弹文件选择框（仅显示 .exe）。启动时若已有存档则直接采用，否则静默使用默认路径并在操作反馈中提示，不会自动弹窗。所选路径持久化，下次启动直接使用。
 3. 在当前 tab 的表单中填写配置项，点「保存配置」持久化、「重新加载」重新读取；点「启动」按当前 tab 的引擎拉起 worker，日志面板实时显示输出（保留最近 500 行）；「停止」先发 3 秒宽限等待自行退出，超时后强杀。
 
