@@ -169,6 +169,7 @@ func (m *Manager) StartPath(path string, args []string) error {
 // start 进程启动主体：path 为可执行文件，args 为完整参数。
 func (m *Manager) start(path string, args []string) error {
 	cmd := exec.Command(path, args...)
+	hideConsoleWindow(cmd) // Windows 下抑制子进程控制台窗口（GUI 启动器不弹 cmd）
 	if extra := m.snapshotEnv(); len(extra) > 0 {
 		cmd.Env = append(os.Environ(), extra...)
 	}
