@@ -1,7 +1,7 @@
 // gui_test.go 是 gui 包冒烟测试（T6 验收）：使用 fyne test 包在 headless 驱动下
 // 构造窗口/表单/状态面板，验证：
 //  1. 窗口构造不 panic；
-//  2. 表单控件数 = 32（9 组）；
+//  2. 表单控件数 = 33（9 组）；
 //  3. 状态机 D4 过渡态下启动按钮禁用。
 package gui
 
@@ -55,16 +55,16 @@ func TestWindowConstruction(t *testing.T) {
 	}
 }
 
-// TestFormFieldCount 表单控件数必须为 32（9 组）。
+// TestFormFieldCount 表单控件数必须为 33（9 组）。
 func TestFormFieldCount(t *testing.T) {
 	w := newTestWindow(t)
 	f := NewNinferForm(w)
 
-	if got := f.CountFields(); got != 32 {
-		t.Fatalf("字段定义数 = %d，期望 32", got)
+	if got := f.CountFields(); got != 33 {
+		t.Fatalf("字段定义数 = %d，期望 33", got)
 	}
-	if got := len(f.entries) + len(f.checks) + len(f.selects); got != 32 {
-		t.Fatalf("实际控件数 = %d（Entry %d + Check %d + Select %d），期望 32",
+	if got := len(f.entries) + len(f.checks) + len(f.selects); got != 33 {
+		t.Fatalf("实际控件数 = %d（Entry %d + Check %d + Select %d），期望 33",
 			got, len(f.entries), len(f.checks), len(f.selects))
 	}
 	if got := len(f.GroupNames()); got != 9 {

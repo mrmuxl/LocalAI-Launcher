@@ -88,6 +88,48 @@ func TestBuildArgs_batRecipe(t *testing.T) {
 				"--kvmem-score-agg", "max",
 			},
 		},
+		{
+			name: "思考力度：DefaultReasoningEffort 非空 → --default-reasoning-effort",
+			cfg: func() config.Config {
+				cfg := config.DefaultConfig()
+				cfg.DefaultReasoningEffort = "high"
+				return cfg
+			}(),
+			want: []string{
+				"Qwen3.8-27B-GSQ-RCO-IQ3_S-ninfer-v3.ninfer",
+				"--host", "127.0.0.1",
+				"--port", "8080",
+				"--max-context", "131072",
+				"--max-concurrency", "1",
+				"--prefill-chunk", "512",
+				"--default-max-tokens", "16384",
+				"--kvmem-budget", "36864",
+				"--kvmem-gen-reserve", "16384",
+				"--kvmem-host-mib", "12288",
+				"--kvmem-sink-tokens", "12288",
+				"--kvmem-recent-tokens", "1024",
+				"--kvmem-sessions", "1",
+				"--kv-dtype", "int8",
+				"--device-profile", "off",
+				"--device", "0",
+				"--spec", "mtp",
+				"--draft-tokens", "4",
+				"--ngram-draft-tokens", "31",
+				"--ngram-min-match", "12",
+				"--adaptive-mtp",
+				"--vision",
+				"--vision-residency", "cpu",
+				"--vision-max-merged", "1024",
+				"--default-thinking-budget", "8192",
+				"--default-reasoning-effort", "high",
+				"--kvmem-disk-path", `D:\kv-cache`,
+				"--kvmem-disk-mib", "4096",
+				"--kvmem-lrfu",
+				"--kvmem-lrfu-lambda", "0.5",
+				"--kvmem-lrfu-top-frac", "0.9",
+				"--kvmem-score-agg", "max",
+			},
+		},
 	}
 
 	for _, tt := range tests {

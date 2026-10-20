@@ -40,8 +40,9 @@ func DefaultConfig() Config {
 		VisionTokens:    DefVisionTokens,
 
 		// 思考与设备
-		ThinkingBudget: DefThinkingBudget,
-		DeviceProfile:  DefDeviceProfile,
+		ThinkingBudget:         DefThinkingBudget,
+		DefaultReasoningEffort: "", // ps1 未传，空 = 不传
+		DeviceProfile:          DefDeviceProfile,
 
 		// SSD 分层
 		DiskPath: DefDiskPath,

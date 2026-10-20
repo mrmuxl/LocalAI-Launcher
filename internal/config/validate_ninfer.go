@@ -100,6 +100,13 @@ func Validate(cfg Config) []string {
 	if cfg.DeviceProfile != "off" && cfg.DeviceProfile != "auto" {
 		errs = append(errs, fmt.Sprintf("设备档案 %q 无效（off/auto）", cfg.DeviceProfile))
 	}
+	switch cfg.DefaultReasoningEffort {
+	case "":
+		// 空 = 不传该参数
+	case "none", "minimal", "low", "medium", "high", "xhigh", "max":
+	default:
+		errs = append(errs, fmt.Sprintf("思考力度 %q 无效（none/minimal/low/medium/high/xhigh/max）", cfg.DefaultReasoningEffort))
+	}
 	if cfg.ScoreAggregation != "mean" && cfg.ScoreAggregation != "max" {
 		errs = append(errs, fmt.Sprintf("评分聚合 %q 无效（mean/max）", cfg.ScoreAggregation))
 	}

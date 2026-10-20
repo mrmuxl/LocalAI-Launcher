@@ -15,7 +15,7 @@ make build-launcher
 ## 运行
 
 1. 双击运行 `bin/LocalAI-launcher.exe`。窗口标题「LocalAI 启动器」，终端输出版本横幅 `LocalAI-launcher v0.1.0`。
-2. 左栏双引擎 tab：**NInfer**（32 字段，对齐 start-ninfer.bat 默认配方）与 **llama.cpp**（46 字段，对齐 Qwen3.8-27B-GSQ_S-MTP.cmd 启动脚本），各自独立表单、独立推理程序行与配置。每个 tab 的「服务」组下有「推理程序」行指定该引擎的 worker 可执行文件：输入路径后回车，或点「打开」弹文件选择框（仅显示 .exe）。启动时若已有存档则直接采用，否则静默使用默认路径并在操作反馈中提示，不会自动弹窗。所选路径持久化，下次启动直接使用。
+2. 左栏双引擎 tab：**NInfer**（33 字段，对齐 start-ninfer.bat 默认配方）与 **llama.cpp**（46 字段，对齐 Qwen3.8-27B-GSQ_S-MTP.cmd 启动脚本），各自独立表单、独立推理程序行与配置。每个 tab 的「服务」组下有「推理程序」行指定该引擎的 worker 可执行文件：输入路径后回车，或点「打开」弹文件选择框（仅显示 .exe）。启动时若已有存档则直接采用，否则静默使用默认路径并在操作反馈中提示，不会自动弹窗。所选路径持久化，下次启动直接使用。
 3. 在当前 tab 的表单中填写配置项，点「保存配置」持久化、「重新加载」重新读取；点「启动」按当前 tab 的引擎拉起 worker，日志面板实时显示输出（保留最近 500 行）；「停止」先发 3 秒宽限等待自行退出，超时后强杀。
 
 - 单实例：Windows 下使用命名互斥锁 `Global\NinferLauncher`，第二个实例弹中文提示并退出（其他平台该锁为 no-op）。
@@ -24,7 +24,7 @@ make build-launcher
 
 全部配置文件便携式存放于启动器 exe 同级目录（整个目录拷走即整套配置，与推理程序位置无关）：
 
-- NInfer：启动器 exe 同级目录下的 `ninfer.json`（32 字段）；
+- NInfer：启动器 exe 同级目录下的 `ninfer.json`（33 字段）；
 - llama.cpp：启动器 exe 同级目录下的 `llama.json`（46 字段）；
 - worker 路径存档：启动器 exe 同级目录下的 `worker.json`。
 

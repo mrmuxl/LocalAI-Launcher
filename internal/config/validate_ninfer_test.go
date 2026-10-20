@@ -153,6 +153,7 @@ func Test_Validate_when_combinationViolated_returnsErrors(t *testing.T) {
 		{"fastPrefillWithBf16", func(c *Config) { c.KvType = "bf16"; c.FastPrefill = true }, "快速 prefill"},
 		{"cpuVisionWithoutVision", func(c *Config) { c.Vision = false }, "CPU 视觉驻留"},
 		{"ngramWithoutMtp", func(c *Config) { c.MtpDrafts = 0 }, "ngram 草稿需要"},
+		{"badReasoningEffort", func(c *Config) { c.DefaultReasoningEffort = "ultra" }, "思考力度"},
 	}
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {

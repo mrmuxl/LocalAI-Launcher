@@ -46,9 +46,10 @@ type Config struct {
 	VisionResidency string `json:"visionResidency"` // 23：视觉驻留（--vision-residency）
 	VisionTokens    int    `json:"visionTokens"`    // 24：单媒体合并上限（--vision-max-merged）
 
-	// ── 思考与设备（2）────────────────────
-	ThinkingBudget int    `json:"thinkingBudget"` // 25：默认思考预算（--default-thinking-budget，0=不传）
-	DeviceProfile  string `json:"deviceProfile"`  // 26：设备档案（--device-profile）
+	// ── 思考与设备（3）────────────────────
+	ThinkingBudget         int    `json:"thinkingBudget"`         // 25：默认思考预算（--default-thinking-budget，0=不传）
+	DefaultReasoningEffort string `json:"defaultReasoningEffort"` // 25a：默认思考力度（--default-reasoning-effort，空=不传）
+	DeviceProfile          string `json:"deviceProfile"`          // 26：设备档案（--device-profile）
 
 	// ── SSD 分层（2）──────────────────────
 	DiskPath string `json:"diskPath"` // 27：SSD 分层目录（--kvmem-disk-path，空=不传）

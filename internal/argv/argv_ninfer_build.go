@@ -93,9 +93,12 @@ func BuildArgs(cfg config.Config) []string {
 		)
 	}
 
-	// 7. 思考预算
+	// 7. 思考预算与思考力度
 	if cfg.ThinkingBudget > 0 {
 		args = append(args, "--default-thinking-budget", strconv.Itoa(cfg.ThinkingBudget))
+	}
+	if cfg.DefaultReasoningEffort != "" {
+		args = append(args, "--default-reasoning-effort", cfg.DefaultReasoningEffort)
 	}
 
 	// 8. SSD 分层段

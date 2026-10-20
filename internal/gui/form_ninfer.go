@@ -73,8 +73,10 @@ var fieldDefs = []fieldDef{
 	{"视觉", "VisionResidency", "视觉驻留（--vision-residency）", kindSelect,
 		[]string{"resident", "cpu"}},
 	{"视觉", "VisionTokens", "单媒体合并上限（--vision-max-merged）", kindInt, nil},
-	// 思考与设备（2）
+	// 思考与设备（3）
 	{"思考与设备", "ThinkingBudget", "默认思考预算（--default-thinking-budget，0 = 不传）", kindInt, nil},
+	{"思考与设备", "DefaultReasoningEffort", "默认思考力度（--default-reasoning-effort，空 = 不传）", kindSelect,
+		[]string{"none", "minimal", "low", "medium", "high", "xhigh", "max"}},
 	{"思考与设备", "DeviceProfile", "设备档案（--device-profile）", kindSelect,
 		[]string{"off", "auto"}},
 	// SSD 分层（2）
@@ -324,6 +326,7 @@ func (f *NinferForm) SetFieldsFrom(cfg config.Config) {
 	f.selects["VisionResidency"].SetSelected(cfg.VisionResidency)
 	f.entries["VisionTokens"].SetText(strconv.Itoa(cfg.VisionTokens))
 	f.entries["ThinkingBudget"].SetText(strconv.Itoa(cfg.ThinkingBudget))
+	f.selects["DefaultReasoningEffort"].SetSelected(cfg.DefaultReasoningEffort)
 	f.selects["DeviceProfile"].SetSelected(cfg.DeviceProfile)
 	f.entries["DiskPath"].SetText(cfg.DiskPath)
 	f.entries["DiskMiB"].SetText(strconv.Itoa(cfg.DiskMiB))
@@ -364,6 +367,7 @@ func (f *NinferForm) CollectConfig() (config.Config, []string) {
 	cfg.VisionResidency = f.selects["VisionResidency"].Selected
 	cfg.VisionTokens, errs = collectInt(f.entries["VisionTokens"], "视觉合并上限", cfg.VisionTokens, errs)
 	cfg.ThinkingBudget, errs = collectInt(f.entries["ThinkingBudget"], "思考预算", cfg.ThinkingBudget, errs)
+	cfg.DefaultReasoningEffort = f.selects["DefaultReasoningEffort"].Selected
 	cfg.DeviceProfile = f.selects["DeviceProfile"].Selected
 	cfg.DiskPath = f.entries["DiskPath"].Text
 	cfg.DiskMiB, errs = collectInt(f.entries["DiskMiB"], "SSD 配额", cfg.DiskMiB, errs)

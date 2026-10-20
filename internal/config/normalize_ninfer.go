@@ -12,6 +12,7 @@ func Normalize(cfg Config) Config {
 	n.StageLayers = strings.TrimSpace(n.StageLayers)
 	n.KvType = strings.TrimSpace(n.KvType)
 	n.VisionResidency = strings.TrimSpace(n.VisionResidency)
+	n.DefaultReasoningEffort = strings.TrimSpace(n.DefaultReasoningEffort)
 	n.DeviceProfile = strings.TrimSpace(n.DeviceProfile)
 	n.DiskPath = strings.TrimSpace(n.DiskPath)
 	n.ScoreAggregation = strings.TrimSpace(n.ScoreAggregation)
