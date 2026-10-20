@@ -25,6 +25,7 @@ const (
 	kindInt
 	kindFloat
 	kindBool
+	kindSelect
 )
 
 // fieldDef 是表单对单个字段的唯一声明。
@@ -41,7 +42,7 @@ var fieldDefs = []fieldDef{
 	// 服务（4）
 	{"服务", "Host", "监听地址（--bind）", kindString},
 	{"服务", "Port", "监听端口（--port）", kindInt},
-	{"服务", "LogLevel", "日志级别（--log-level，debug/info/warn/error）", kindString},
+	{"服务", "LogLevel", "日志级别（--log-level）", kindSelect},
 	{"服务", "Workers", "并发 worker 数（--workers）", kindInt},
 	// 模型（5）
 	{"模型", "ModelName", "模型标识（--model）", kindString},
@@ -116,6 +117,7 @@ type NinferForm struct {
 	content  fyne.CanvasObject // 8 组表单垂直排列的滚动容器
 	entries  map[string]*widget.Entry
 	checks   map[string]*widget.Check
+	selects  map[string]*widget.Select
 	errLabel *widget.Label
 	saveBtn  *widget.Button
 	loadBtn  *widget.Button
@@ -125,10 +127,14 @@ type NinferForm struct {
 	onChange        func()            // App 注入：字段变化时触发后台校验
 	onOpenWorker    func()            // App 注入：打开按钮 → 文件选择框
 	onWorkerPathSet func(path string) // App 注入：输入框回车提交路径
+	onOpenModel     func()            // App 注入：模型文件「打开」按钮 → 文件选择框
 }
 
 // entryWidth 统一输入框固定宽度（所有文本输入行一致，不随窗口拉伸）。
 const entryWidth = 300
+
+// logLevelOptions 日志级别下拉框选项（与 config.Validate 的合法值一致）。
+var logLevelOptions = []string{"debug", "info", "warn", "error"}
 
 // fixedWidthLayout 将子对象约束为固定宽度、占满可用高度。
 // 必须用 Container+Layout 而非包装器 struct：包装器会经方法提升意外满足
@@ -163,6 +169,7 @@ func NewNinferForm(window fyne.Window) *NinferForm {
 		window:  window,
 		entries: make(map[string]*widget.Entry, len(fieldDefs)),
 		checks:  make(map[string]*widget.Check),
+		selects: make(map[string]*widget.Select),
 	}
 
 	controls := make(map[string]fyne.CanvasObject, len(fieldDefs))
@@ -173,6 +180,11 @@ func NewNinferForm(window fyne.Window) *NinferForm {
 			c.OnChanged = func(bool) { f.notifyChange() }
 			f.checks[d.name] = c
 			controls[d.name] = c
+		case kindSelect:
+			s := widget.NewSelect(logLevelOptions, func(string) { f.notifyChange() })
+			s.SetSelected(config.DefLogLevel) // 未加载配置前的兜底选中项
+			f.selects[d.name] = s
+			controls[d.name] = s
 		default:
 			e := widget.NewEntry()
 			e.OnChanged = func(string) { f.notifyChange() }
@@ -197,7 +209,8 @@ func NewNinferForm(window fyne.Window) *NinferForm {
 		return container.NewHBox(newFixedWidth(widget.NewLabel(label), labelWidth), w, layout.NewSpacer())
 	}
 
-	// 8 组散开垂直排列：每组一个加粗标题 + 统一行；「服务」组后插入推理程序行。
+	// 8 组散开垂直排列：每组一个加粗标题 + 统一行；「服务」组后插入推理程序行，
+	// 「模型」组的 ModelPath 行带「打开」按钮。
 	var sections []fyne.CanvasObject
 	seen := make(map[string]bool, 8)
 	for _, d := range fieldDefs {
@@ -208,6 +221,10 @@ func NewNinferForm(window fyne.Window) *NinferForm {
 			if d.group == "服务" {
 				sections = append(sections, f.buildWorkerPathRow(labelWidth))
 			}
+		}
+		if d.name == "ModelPath" {
+			sections = append(sections, f.buildModelPathRow(labelWidth))
+			continue
 		}
 		_, isCheck := f.checks[d.name]
 		sections = append(sections, row(d.label, controls[d.name], !isCheck))
@@ -249,10 +266,33 @@ func (f *NinferForm) buildWorkerPathRow(labelWidth float32) fyne.CanvasObject {
 	)
 }
 
+// buildModelPathRow 构建「模型文件」行：标签 + 固定宽路径输入框 + 打开按钮。
+// 打开按钮弹文件选择框（回调由 App 注入），选择结果回填输入框（随配置保存）。
+func (f *NinferForm) buildModelPathRow(labelWidth float32) fyne.CanvasObject {
+	openBtn := widget.NewButton("打开", func() {
+		if f.onOpenModel != nil {
+			f.onOpenModel()
+		}
+	})
+	return container.NewHBox(
+		newFixedWidth(widget.NewLabel("模型文件/目录（位置参数 model.ninfer，空 = 自动）"), labelWidth),
+		newFixedWidth(f.entries["ModelPath"], entryWidth),
+		openBtn,
+		layout.NewSpacer(),
+	)
+}
+
 // SetWorkerPath 回填推理程序路径输入框（主线程；SetText 不触发 OnSubmitted）。
 func (f *NinferForm) SetWorkerPath(p string) {
 	if f.workerPathEntry != nil {
 		f.workerPathEntry.SetText(p)
+	}
+}
+
+// SetModelPath 回填模型路径输入框（主线程；文件选择框回调使用）。
+func (f *NinferForm) SetModelPath(p string) {
+	if e, ok := f.entries["ModelPath"]; ok {
+		e.SetText(p)
 	}
 }
 
@@ -265,6 +305,11 @@ func (f *NinferForm) notifyChange() {
 
 // CountFields 返回字段总数（应为 34）。
 func (f *NinferForm) CountFields() int { return len(fieldDefs) }
+
+// controlCount 返回实际控件数（Entry + Check + Select，应为 34）。
+func (f *NinferForm) controlCount() int {
+	return len(f.entries) + len(f.checks) + len(f.selects)
+}
 
 // GroupNames 按字段出现顺序返回 8 个分组名。
 func (f *NinferForm) GroupNames() []string {
@@ -283,7 +328,7 @@ func (f *NinferForm) GroupNames() []string {
 func (f *NinferForm) SetFieldsFrom(cfg config.Config) {
 	f.entries["Host"].SetText(cfg.Host)
 	f.entries["Port"].SetText(strconv.Itoa(cfg.Port))
-	f.entries["LogLevel"].SetText(cfg.LogLevel)
+	f.selects["LogLevel"].SetSelected(cfg.LogLevel)
 	f.entries["Workers"].SetText(strconv.Itoa(cfg.Workers))
 	f.entries["ModelName"].SetText(cfg.ModelName)
 	f.entries["ModelPath"].SetText(cfg.ModelPath)
@@ -325,7 +370,7 @@ func (f *NinferForm) CollectConfig() (config.Config, []string) {
 
 	cfg.Host = f.entries["Host"].Text
 	cfg.Port, errs = collectInt(f.entries["Port"], "监听端口", cfg.Port, errs)
-	cfg.LogLevel = f.entries["LogLevel"].Text
+	cfg.LogLevel = f.selects["LogLevel"].Selected
 	cfg.Workers, errs = collectInt(f.entries["Workers"], "并发 worker 数", cfg.Workers, errs)
 	cfg.ModelName = f.entries["ModelName"].Text
 	cfg.ModelPath = f.entries["ModelPath"].Text

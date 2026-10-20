@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -92,6 +93,7 @@ func NewApp() *App {
 	a.form.loadBtn.OnTapped = a.onLoad
 	a.form.onOpenWorker = a.pickWorker
 	a.form.onWorkerPathSet = a.onWorkerPathSubmitted
+	a.form.onOpenModel = a.pickModel
 	a.llamaForm.onChange = a.onFormChange
 	a.llamaForm.onOpenWorker = a.pickLlamaWorker
 	a.llamaForm.onWorkerPathSet = a.onLlamaWorkerPathSubmitted
@@ -166,6 +168,28 @@ func (a *App) pickWorker() { a.pickWorkerDialog(a.applyWorkerChoice) }
 
 // pickLlamaWorker 弹出 llama.cpp worker 文件选择框（主线程，按钮回调）。
 func (a *App) pickLlamaWorker() { a.pickWorkerDialog(a.applyLlamaWorkerChoice) }
+
+// pickModel 弹出模型文件选择框（主线程，按钮回调）：过滤 .ninfer，
+// 选择结果回填模型路径输入框（随配置保存，不单独持久化）。
+func (a *App) pickModel() {
+	d := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+		if err != nil {
+			log.Printf("模型文件选择失败: %v", err)
+			return
+		}
+		if reader == nil {
+			a.msgLbl.SetText("未选择模型文件，保持当前路径")
+			return
+		}
+		path := reader.URI().Path()
+		if closeErr := reader.Close(); closeErr != nil {
+			log.Printf("关闭模型文件选择结果失败: %v", closeErr)
+		}
+		fyne.Do(func() { a.form.SetModelPath(path) })
+	}, a.window)
+	d.SetFilter(storage.NewExtensionFileFilter([]string{".ninfer"}))
+	d.Show()
+}
 
 // pickWorkerDialog 弹出文件选择框（必须主线程调用），仅过滤 .exe，
 // 用户确认后进入后台 goroutine 执行 apply（校验、持久化并注入）。
@@ -398,7 +422,7 @@ func (a *App) onStart() {
 	go a.doStart(cfg)
 }
 
-// doStartLlama 后台启动 llama worker（goroutine）：全量校验 → StartPath。
+// doStartLlama 后台启动 llama worker（goroutine）：全量校验 → 输出命令行 → StartPath。
 func (a *App) doStartLlama(cfg config.LlamaConfig) {
 	if errs := config.ValidateLlama(cfg); len(errs) > 0 {
 		log.Printf("启动前校验失败: %v", errs)
@@ -408,7 +432,10 @@ func (a *App) doStartLlama(cfg config.LlamaConfig) {
 		})
 		return
 	}
-	if err := a.manager.StartPath(a.llamaWorkerPathOrDef(), argv.BuildLlamaArgs(cfg)); err != nil {
+	exe := a.llamaWorkerPathOrDef()
+	args := argv.BuildLlamaArgs(cfg)
+	a.announceCmdline(exe, args)
+	if err := a.manager.StartPath(exe, args); err != nil {
 		log.Printf("启动 worker 失败: %v", err)
 		fyne.Do(func() { a.status.startBtn.Enable() })
 		return
@@ -419,7 +446,7 @@ func (a *App) doStartLlama(cfg config.LlamaConfig) {
 	log.Printf("worker 已启动 (PID=%d)", a.manager.Pid())
 }
 
-// doStart 后台启动 worker（goroutine）：规范化 → 全量校验 → Start。
+// doStart 后台启动 worker（goroutine）：规范化 → 全量校验 → 输出命令行 → Start。
 func (a *App) doStart(cfg config.Config) {
 	cfg = config.Normalize(cfg)
 	if errs := config.Validate(cfg); len(errs) > 0 {
@@ -430,6 +457,9 @@ func (a *App) doStart(cfg config.Config) {
 		})
 		return
 	}
+	exe := a.manager.Path()
+	args := argv.BuildArgs(cfg)
+	a.announceCmdline(exe, args)
 	if err := a.manager.Start(cfg); err != nil {
 		log.Printf("启动 worker 失败: %v", err)
 		fyne.Do(func() { a.status.startBtn.Enable() })
@@ -439,6 +469,15 @@ func (a *App) doStart(cfg config.Config) {
 	a.startedAt = time.Now()
 	a.mu.Unlock()
 	log.Printf("worker 已启动 (PID=%d)", a.manager.Pid())
+}
+
+// announceCmdline 把即将执行的完整命令行写入日志面板与标准日志
+// （goroutine 内调用；ring.Append 线程安全，UI 由 tick 周期刷新，此处立即刷一次）。
+func (a *App) announceCmdline(exe string, args []string) {
+	cmdline := exe + " " + strings.Join(args, " ")
+	a.ring.Append("$ " + cmdline)
+	log.Printf("启动命令行: %s", cmdline)
+	fyne.Do(func() { a.logv.Refresh() })
 }
 
 // onStop 停止按钮回调（主线程）：仅 Running 可停，Stop 入 goroutine。

@@ -63,8 +63,9 @@ func TestFormFieldCount(t *testing.T) {
 	if got := f.CountFields(); got != 34 {
 		t.Fatalf("字段定义数 = %d，期望 34", got)
 	}
-	if got := len(f.entries) + len(f.checks); got != 34 {
-		t.Fatalf("实际控件数 = %d（Entry %d + Check %d），期望 34", got, len(f.entries), len(f.checks))
+	if got := len(f.entries) + len(f.checks) + len(f.selects); got != 34 {
+		t.Fatalf("实际控件数 = %d（Entry %d + Check %d + Select %d），期望 34",
+			got, len(f.entries), len(f.checks), len(f.selects))
 	}
 	if got := len(f.GroupNames()); got != 8 {
 		t.Fatalf("分组数 = %d，期望 8", got)
