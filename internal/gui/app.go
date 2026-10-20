@@ -113,7 +113,7 @@ func NewApp() *App {
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.tickDone = make(chan struct{})
 
-	// 初始化后台派发：worker 路径确定后加载配置（配置文件放推理程序目录）+ 1s 状态刷新。
+	// 初始化后台派发：worker 路径确定后加载配置（配置文件放启动器 exe 同级目录）+ 1s 状态刷新。
 	go a.initWorkerPath()
 	go a.tick()
 
@@ -123,7 +123,7 @@ func NewApp() *App {
 // initWorkerPath 决定两个引擎的 worker 可执行文件路径（后台 goroutine，NewApp 时派发）：
 // 各读各的存档字段——有效则直接采用并回填；否则静默回退默认路径，不自动弹窗，
 // 由用户点各 tab 的「打开」按钮时再弹选择框。
-// 路径确定后（无论哪条分支）调用 doLoadInitial：配置文件放推理程序目录，
+// 路径确定后（无论哪条分支）调用 doLoadInitial：配置文件放启动器 exe 同级目录，
 // 必须先定路径才能定位配置。
 func (a *App) initWorkerPath() {
 	saved, err := config.LoadWorkerPath()
@@ -134,14 +134,14 @@ func (a *App) initWorkerPath() {
 		a.manager.SetPath(saved)
 		fyne.Do(func() {
 			a.form.SetWorkerPath(saved)
-			a.msgLbl.SetText("✓ 使用已保存的推理程序：" + saved)
+			a.msgLbl.SetText("✓ 使用已保存的推理引擎：" + saved)
 		})
 	default:
 		if saved != "" {
 			log.Printf("已保存的 worker 路径不存在: %s，回退默认路径", saved)
 		}
 		fyne.Do(func() {
-			a.msgLbl.SetText("未指定推理程序，使用默认路径：" + a.manager.Path() + "；点「打开」选择推理程序")
+			a.msgLbl.SetText("未指定推理引擎，使用默认路径：" + a.manager.Path() + "；点「打开」选择推理引擎")
 		})
 	}
 
@@ -171,16 +171,16 @@ func fileExists(p string) bool {
 	return err == nil && !st.IsDir()
 }
 
-// pickWorker 弹出 NInfer 推理程序选择框（主线程，按钮回调）。
+// pickWorker 弹出 NInfer 推理引擎选择框（主线程，按钮回调）。
 func (a *App) pickWorker() {
-	a.pickWithDialog("选择 NInfer 推理程序", []string{".exe"}, func(path string) {
+	a.pickWithDialog("选择 NInfer 推理引擎", []string{".exe"}, func(path string) {
 		go a.applyWorkerChoice(path)
 	})
 }
 
-// pickLlamaWorker 弹出 llama.cpp 推理程序选择框（主线程，按钮回调）。
+// pickLlamaWorker 弹出 llama.cpp 推理引擎选择框（主线程，按钮回调）。
 func (a *App) pickLlamaWorker() {
-	a.pickWithDialog("选择 llama.cpp 推理程序", []string{".exe"}, func(path string) {
+	a.pickWithDialog("选择 llama.cpp 推理引擎", []string{".exe"}, func(path string) {
 		go a.applyLlamaWorkerChoice(path)
 	})
 }
@@ -294,17 +294,17 @@ func (a *App) applyWorkerChoice(path string) {
 	a.manager.SetPath(path)
 	fyne.Do(func() {
 		a.form.SetWorkerPath(path)
-		a.msgLbl.SetText("✓ 推理程序路径已保存，下次启动直接使用：" + path)
+		a.msgLbl.SetText("✓ 推理引擎路径已保存，下次启动直接使用：" + path)
 	})
 }
 
-// onWorkerPathSubmitted 推理程序输入框回车回调（主线程，来自 NinferForm）：
+// onWorkerPathSubmitted 推理引擎输入框回车回调（主线程，来自 NinferForm）：
 // 立即返回，校验/持久化/注入派发到后台 goroutine。
 func (a *App) onWorkerPathSubmitted(path string) {
 	go a.applyWorkerChoice(path)
 }
 
-// onLlamaWorkerPathSubmitted llama 推理程序输入框回车回调（主线程，来自 LlamaForm）。
+// onLlamaWorkerPathSubmitted llama 推理引擎输入框回车回调（主线程，来自 LlamaForm）。
 func (a *App) onLlamaWorkerPathSubmitted(path string) {
 	go a.applyLlamaWorkerChoice(path)
 }

@@ -145,8 +145,8 @@ func NewLlamaForm(window fyne.Window) *LlamaForm {
 		}
 	}
 
-	// 统一标签列宽：取全部行标签（含「推理程序」）的最大文本宽度。
-	labelWidth := widget.NewLabel("推理程序").MinSize().Width
+	// 统一标签列宽：取全部行标签（含「推理引擎」）的最大文本宽度。
+	labelWidth := widget.NewLabel("推理引擎").MinSize().Width
 	for _, d := range llamaFieldDefs {
 		if w := widget.NewLabel(d.label).MinSize().Width; w > labelWidth {
 			labelWidth = w
@@ -207,7 +207,7 @@ func (f *LlamaForm) ErrLabel() fyne.CanvasObject {
 	return f.errLabel
 }
 
-// buildWorkerPathRow 构建「推理程序」行：标签 + 固定宽路径输入框 + 打开按钮。
+// buildWorkerPathRow 构建「推理引擎」行：标签 + 固定宽路径输入框 + 打开按钮。
 func (f *LlamaForm) buildWorkerPathRow(labelWidth float32) fyne.CanvasObject {
 	f.workerPathEntry = widget.NewEntry()
 	f.workerPathEntry.SetPlaceHolder("llama worker exe 路径（输入后回车，或点「打开」选择）")
@@ -222,14 +222,14 @@ func (f *LlamaForm) buildWorkerPathRow(labelWidth float32) fyne.CanvasObject {
 		}
 	})
 	return container.NewHBox(
-		newFixedWidth(widget.NewLabel("推理程序"), labelWidth),
+		newFixedWidth(widget.NewLabel("推理引擎"), labelWidth),
 		newFixedWidth(f.workerPathEntry, entryWidth),
 		openBtn,
 		layout.NewSpacer(),
 	)
 }
 
-// SetWorkerPath 回填推理程序路径输入框（主线程；SetText 不触发 OnSubmitted）。
+// SetWorkerPath 回填推理引擎路径输入框（主线程；SetText 不触发 OnSubmitted）。
 func (f *LlamaForm) SetWorkerPath(p string) {
 	if f.workerPathEntry != nil {
 		f.workerPathEntry.SetText(p)

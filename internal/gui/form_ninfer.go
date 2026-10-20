@@ -100,7 +100,7 @@ type NinferForm struct {
 	selects  map[string]*widget.Select
 	errLabel *widget.Label
 
-	workerPathEntry *widget.Entry // 推理程序路径输入框（服务组下方）
+	workerPathEntry *widget.Entry // 推理引擎路径输入框（服务组下方）
 
 	onChange        func()            // App 注入：字段变化时触发后台校验
 	onOpenWorker    func()            // App 注入：打开按钮 → 文件选择框
@@ -167,8 +167,8 @@ func NewNinferForm(window fyne.Window) *NinferForm {
 		}
 	}
 
-	// 统一标签列宽：取全部行标签（含「推理程序」）的最大文本宽度。
-	labelWidth := widget.NewLabel("推理程序").MinSize().Width
+	// 统一标签列宽：取全部行标签（含「推理引擎」）的最大文本宽度。
+	labelWidth := widget.NewLabel("推理引擎").MinSize().Width
 	for _, d := range fieldDefs {
 		if w := widget.NewLabel(d.label).MinSize().Width; w > labelWidth {
 			labelWidth = w
@@ -183,7 +183,7 @@ func NewNinferForm(window fyne.Window) *NinferForm {
 		return container.NewHBox(newFixedWidth(widget.NewLabel(label), labelWidth), w, layout.NewSpacer())
 	}
 
-	// 9 组散开垂直排列：每组一个加粗标题 + 统一行；「服务」组后插入推理程序行，
+	// 9 组散开垂直排列：每组一个加粗标题 + 统一行；「服务」组后插入推理引擎行，
 	// 「模型」组的 ModelPath 行带「打开」按钮。
 	var sections []fyne.CanvasObject
 	seen := make(map[string]bool, 8)
@@ -218,11 +218,11 @@ func (f *NinferForm) Content() fyne.CanvasObject {
 	return f.content
 }
 
-// buildWorkerPathRow 构建「推理程序」行：标签 + 固定宽路径输入框 + 打开按钮。
+// buildWorkerPathRow 构建「推理引擎」行：标签 + 固定宽路径输入框 + 打开按钮。
 // 输入框回车提交路径；打开按钮弹文件选择框（回调由 App 注入）。
 func (f *NinferForm) buildWorkerPathRow(labelWidth float32) fyne.CanvasObject {
 	f.workerPathEntry = widget.NewEntry()
-	f.workerPathEntry.SetPlaceHolder("NInfer 推理程序路径（输入后回车，或点「打开」选择）")
+	f.workerPathEntry.SetPlaceHolder("NInfer 推理引擎路径（输入后回车，或点「打开」选择）")
 	f.workerPathEntry.OnSubmitted = func(text string) {
 		if f.onWorkerPathSet != nil {
 			f.onWorkerPathSet(text)
@@ -234,7 +234,7 @@ func (f *NinferForm) buildWorkerPathRow(labelWidth float32) fyne.CanvasObject {
 		}
 	})
 	return container.NewHBox(
-		newFixedWidth(widget.NewLabel("推理程序"), labelWidth),
+		newFixedWidth(widget.NewLabel("推理引擎"), labelWidth),
 		newFixedWidth(f.workerPathEntry, entryWidth),
 		openBtn,
 		layout.NewSpacer(),
@@ -257,7 +257,7 @@ func (f *NinferForm) buildModelPathRow(labelWidth float32) fyne.CanvasObject {
 	)
 }
 
-// SetWorkerPath 回填推理程序路径输入框（主线程；SetText 不触发 OnSubmitted）。
+// SetWorkerPath 回填推理引擎路径输入框（主线程；SetText 不触发 OnSubmitted）。
 func (f *NinferForm) SetWorkerPath(p string) {
 	if f.workerPathEntry != nil {
 		f.workerPathEntry.SetText(p)
