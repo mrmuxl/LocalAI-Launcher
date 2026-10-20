@@ -98,6 +98,7 @@ func NewApp() *App {
 	a.llamaForm.onWorkerPathSet = a.onLlamaWorkerPathSubmitted
 	a.llamaForm.onOpenModel = a.pickLlamaModel
 	a.llamaForm.onOpenMmproj = a.pickLlamaMmproj
+	a.llamaForm.onOpenChatTpl = a.pickLlamaChatTemplate
 
 	// 状态面板：启动/停止回调注入（主线程回调，立即返回）。
 	a.status = NewStatusPanel(a.onStart, a.onStop)
@@ -205,6 +206,14 @@ func (a *App) pickLlamaModel() {
 func (a *App) pickLlamaMmproj() {
 	a.pickWithDialog("选择视觉模型 mmproj", []string{".gguf"}, func(path string) {
 		fyne.Do(func() { a.llamaForm.SetMmprojPath(path) })
+	})
+}
+
+// pickLlamaChatTemplate 弹出聊天模板文件选择框（主线程，按钮回调）：
+// 过滤 .jinja/.j2/.txt，选择结果回填 llama 表单聊天模板路径输入框。
+func (a *App) pickLlamaChatTemplate() {
+	a.pickWithDialog("选择聊天模板文件", []string{".jinja", ".j2", ".txt"}, func(path string) {
+		fyne.Do(func() { a.llamaForm.SetChatTemplatePath(path) })
 	})
 }
 

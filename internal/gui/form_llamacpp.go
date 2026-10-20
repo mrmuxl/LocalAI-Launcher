@@ -112,6 +112,7 @@ type LlamaForm struct {
 	onWorkerPathSet func(path string) // App 注入：输入框回车提交路径
 	onOpenModel     func()            // App 注入：模型文件「打开」按钮 → 文件选择窗口
 	onOpenMmproj    func()            // App 注入：视觉模型「打开」按钮 → 文件选择窗口
+	onOpenChatTpl   func()            // App 注入：聊天模板文件「打开」按钮 → 文件选择窗口
 }
 
 // NewLlamaForm 构建 9 组表单（垂直一排、带分组标题、整体滚动）并返回。
@@ -178,6 +179,10 @@ func NewLlamaForm(window fyne.Window) *LlamaForm {
 		}
 		if d.name == "MmprojPath" {
 			sections = append(sections, f.buildMmprojPathRow(labelWidth))
+			continue
+		}
+		if d.name == "ChatTemplateFile" {
+			sections = append(sections, f.buildChatTemplatePathRow(labelWidth))
 			continue
 		}
 		sections = append(sections, row(d.label, controls[d.name], !isCheck && !isSelect))
@@ -272,6 +277,28 @@ func (f *LlamaForm) SetModelPath(p string) {
 // SetMmprojPath 回填视觉模型路径输入框（主线程；文件选择窗口回调使用）。
 func (f *LlamaForm) SetMmprojPath(p string) {
 	if e, ok := f.entries["MmprojPath"]; ok {
+		e.SetText(p)
+	}
+}
+
+// buildChatTemplatePathRow 构建「聊天模板文件」行：标签 + 固定宽路径输入框 + 打开按钮。
+func (f *LlamaForm) buildChatTemplatePathRow(labelWidth float32) fyne.CanvasObject {
+	openBtn := widget.NewButton("打开", func() {
+		if f.onOpenChatTpl != nil {
+			f.onOpenChatTpl()
+		}
+	})
+	return container.NewHBox(
+		newFixedWidth(widget.NewLabel("聊天模板文件（--chat-template-file，空 = 不传）"), labelWidth),
+		newFixedWidth(f.entries["ChatTemplateFile"], entryWidth),
+		openBtn,
+		layout.NewSpacer(),
+	)
+}
+
+// SetChatTemplatePath 回填聊天模板文件路径输入框（主线程；文件选择窗口回调使用）。
+func (f *LlamaForm) SetChatTemplatePath(p string) {
+	if e, ok := f.entries["ChatTemplateFile"]; ok {
 		e.SetText(p)
 	}
 }
