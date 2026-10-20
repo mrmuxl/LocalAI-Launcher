@@ -56,6 +56,27 @@ func TestSaveLoadWorkerPathRoundtripNested(t *testing.T) {
 	}
 }
 
+// TestLastPickDir_roundtrip 记录级读写：LastPickDir 与双 worker 路径互不覆盖。
+func TestLastPickDir_roundtrip(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "worker.json")
+	rec := WorkerPathRecord{
+		WorkerPath:      `C:\a\ninfer.exe`,
+		LlamaWorkerPath: `C:\b\llama-server.exe`,
+		LastPickDir:     `D:\models`,
+	}
+	if err := saveWorkerRecordTo(file, rec); err != nil {
+		t.Fatalf("保存失败: %v", err)
+	}
+	got, err := loadWorkerRecordFrom(file)
+	if err != nil {
+		t.Fatalf("读取失败: %v", err)
+	}
+	if got != rec {
+		t.Fatalf("roundtrip 不一致: want %+v, got %+v", rec, got)
+	}
+}
+
 // TestSaveLlamaWorkerPath_preservesNinferPath 写入 llama 路径不得覆盖 ninfer 路径。
 func TestSaveLlamaWorkerPath_preservesNinferPath(t *testing.T) {
 	dir := t.TempDir()

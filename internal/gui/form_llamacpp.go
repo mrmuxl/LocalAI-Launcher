@@ -108,8 +108,10 @@ type LlamaForm struct {
 	workerPathEntry *widget.Entry // llama worker 可执行文件路径输入框
 
 	onChange        func()            // App 注入：字段变化时触发后台校验
-	onOpenWorker    func()            // App 注入：打开按钮 → 文件选择框
+	onOpenWorker    func()            // App 注入：打开按钮 → 文件选择窗口
 	onWorkerPathSet func(path string) // App 注入：输入框回车提交路径
+	onOpenModel     func()            // App 注入：模型文件「打开」按钮 → 文件选择窗口
+	onOpenMmproj    func()            // App 注入：视觉模型「打开」按钮 → 文件选择窗口
 }
 
 // NewLlamaForm 构建 9 组表单（垂直一排、带分组标题、整体滚动）并返回。
@@ -170,6 +172,14 @@ func NewLlamaForm(window fyne.Window) *LlamaForm {
 		}
 		_, isCheck := f.checks[d.name]
 		_, isSelect := f.selects[d.name]
+		if d.name == "ModelPath" {
+			sections = append(sections, f.buildModelPathRow(labelWidth))
+			continue
+		}
+		if d.name == "MmprojPath" {
+			sections = append(sections, f.buildMmprojPathRow(labelWidth))
+			continue
+		}
 		sections = append(sections, row(d.label, controls[d.name], !isCheck && !isSelect))
 	}
 	f.content = container.NewScroll(container.NewVBox(sections...))
@@ -218,6 +228,51 @@ func (f *LlamaForm) buildWorkerPathRow(labelWidth float32) fyne.CanvasObject {
 func (f *LlamaForm) SetWorkerPath(p string) {
 	if f.workerPathEntry != nil {
 		f.workerPathEntry.SetText(p)
+	}
+}
+
+// buildModelPathRow 构建「模型文件」行：标签 + 固定宽路径输入框 + 打开按钮。
+// 打开按钮弹文件选择窗口（回调由 App 注入），选择结果回填输入框（随配置保存）。
+func (f *LlamaForm) buildModelPathRow(labelWidth float32) fyne.CanvasObject {
+	openBtn := widget.NewButton("打开", func() {
+		if f.onOpenModel != nil {
+			f.onOpenModel()
+		}
+	})
+	return container.NewHBox(
+		newFixedWidth(widget.NewLabel("模型文件（GGUF 路径，-m）"), labelWidth),
+		newFixedWidth(f.entries["ModelPath"], entryWidth),
+		openBtn,
+		layout.NewSpacer(),
+	)
+}
+
+// buildMmprojPathRow 构建「视觉模型」行：标签 + 固定宽路径输入框 + 打开按钮。
+func (f *LlamaForm) buildMmprojPathRow(labelWidth float32) fyne.CanvasObject {
+	openBtn := widget.NewButton("打开", func() {
+		if f.onOpenMmproj != nil {
+			f.onOpenMmproj()
+		}
+	})
+	return container.NewHBox(
+		newFixedWidth(widget.NewLabel("视觉模型（--mmproj，空 = 不传）"), labelWidth),
+		newFixedWidth(f.entries["MmprojPath"], entryWidth),
+		openBtn,
+		layout.NewSpacer(),
+	)
+}
+
+// SetModelPath 回填模型路径输入框（主线程；文件选择窗口回调使用）。
+func (f *LlamaForm) SetModelPath(p string) {
+	if e, ok := f.entries["ModelPath"]; ok {
+		e.SetText(p)
+	}
+}
+
+// SetMmprojPath 回填视觉模型路径输入框（主线程；文件选择窗口回调使用）。
+func (f *LlamaForm) SetMmprojPath(p string) {
+	if e, ok := f.entries["MmprojPath"]; ok {
+		e.SetText(p)
 	}
 }
 

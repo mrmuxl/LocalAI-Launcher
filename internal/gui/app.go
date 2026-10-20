@@ -11,7 +11,6 @@ import (
 	"context"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -20,8 +19,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
 	"llmlauncher/internal/argv"
@@ -55,6 +52,7 @@ type App struct {
 	ring      *process.RingLog
 
 	llamaWorkerPath string // llama.cpp worker 可执行文件路径（内存，启动用）
+	lastPickDir     string // 文件选择弹窗上次所在目录（内存 + worker.json 持久化）
 
 	mu           sync.Mutex
 	startedAt    time.Time // 最近一次进入 Running 的时间（doStart 写，tick 读）
@@ -95,6 +93,8 @@ func NewApp() *App {
 	a.llamaForm.onChange = a.onFormChange
 	a.llamaForm.onOpenWorker = a.pickLlamaWorker
 	a.llamaForm.onWorkerPathSet = a.onLlamaWorkerPathSubmitted
+	a.llamaForm.onOpenModel = a.pickLlamaModel
+	a.llamaForm.onOpenMmproj = a.pickLlamaMmproj
 
 	// 状态面板：启动/停止回调注入（主线程回调，立即返回）。
 	a.status = NewStatusPanel(a.onStart, a.onStop)
@@ -152,6 +152,12 @@ func (a *App) initWorkerPath() {
 		log.Printf("已保存的 llama worker 路径不存在: %s，回退默认路径", lsaved)
 	}
 
+	if dir, err := config.LoadLastPickDir(); err != nil {
+		log.Printf("读取上次打开目录失败: %v", err)
+	} else if dir != "" {
+		a.lastPickDir = dir
+	}
+
 	a.doLoadInitial()
 }
 
@@ -161,61 +167,58 @@ func fileExists(p string) bool {
 	return err == nil && !st.IsDir()
 }
 
-// pickWorker 弹出 ninfer worker 文件选择框（主线程，按钮回调）。
-func (a *App) pickWorker() { a.pickWorkerDialog(a.applyWorkerChoice) }
-
-// pickLlamaWorker 弹出 llama.cpp worker 文件选择框（主线程，按钮回调）。
-func (a *App) pickLlamaWorker() { a.pickWorkerDialog(a.applyLlamaWorkerChoice) }
-
-// pickModel 弹出模型文件选择框（主线程，按钮回调）：过滤 .ninfer，
-// 选择结果回填模型路径输入框（随配置保存，不单独持久化）。
-func (a *App) pickModel() {
-	d := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
-		if err != nil {
-			log.Printf("模型文件选择失败: %v", err)
-			return
-		}
-		if reader == nil {
-			a.msgLbl.SetText("未选择模型文件，保持当前路径")
-			return
-		}
-		path := reader.URI().Path()
-		if closeErr := reader.Close(); closeErr != nil {
-			log.Printf("关闭模型文件选择结果失败: %v", closeErr)
-		}
-		fyne.Do(func() { a.form.SetModelPath(path) })
-	}, a.window)
-	d.SetFilter(storage.NewExtensionFileFilter([]string{".ninfer"}))
-	d.Show()
+// pickWorker 弹出 NInfer 推理程序选择窗口（主线程，按钮回调）。
+func (a *App) pickWorker() {
+	a.openFilePicker("选择 NInfer 推理程序", []string{".exe"}, a.applyWorkerChoice)
 }
 
-// pickWorkerDialog 弹出文件选择框（必须主线程调用），仅过滤 .exe，
-// 用户确认后进入后台 goroutine 执行 apply（校验、持久化并注入）。
-func (a *App) pickWorkerDialog(apply func(path string)) {
-	d := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
-		// dialog 回调运行在主线程：立即关闭 reader，IO 派发后台。
-		if err != nil {
-			log.Printf("文件选择失败: %v", err)
-			return
-		}
-		if reader == nil {
-			a.msgLbl.SetText("未选择文件，保持当前路径")
-			return
-		}
-		path := reader.URI().Path()
-		if closeErr := reader.Close(); closeErr != nil {
-			log.Printf("关闭文件选择结果失败: %v", closeErr)
-		}
-		go apply(path)
-	}, a.window)
-	d.SetFilter(storage.NewExtensionFileFilter([]string{".exe"}))
-	// 打开时定位到当前生效路径的目录，减少再次翻找。
-	if p := a.manager.Path(); p != "" && p != process.DefaultWorkerPath {
-		if lister, err := storage.ListerForURI(storage.NewFileURI(filepath.Dir(p))); err == nil {
-			d.SetLocation(lister)
-		}
+// pickLlamaWorker 弹出 llama.cpp 推理程序选择窗口（主线程，按钮回调）。
+func (a *App) pickLlamaWorker() {
+	a.openFilePicker("选择 llama.cpp 推理程序", []string{".exe"}, a.applyLlamaWorkerChoice)
+}
+
+// pickModel 弹出 NInfer 模型文件选择窗口（主线程，按钮回调）：
+// 过滤 .ninfer，选择结果回填模型路径输入框（随配置保存）。
+func (a *App) pickModel() {
+	a.openFilePicker("选择 NInfer 模型文件", []string{".ninfer"}, func(path string) {
+		fyne.Do(func() { a.form.SetModelPath(path) })
+	})
+}
+
+// pickLlamaModel 弹出 GGUF 模型文件选择窗口（主线程，按钮回调）：
+// 过滤 .gguf，选择结果回填 llama 表单模型路径输入框。
+func (a *App) pickLlamaModel() {
+	a.openFilePicker("选择 GGUF 模型文件", []string{".gguf"}, func(path string) {
+		fyne.Do(func() { a.llamaForm.SetModelPath(path) })
+	})
+}
+
+// pickLlamaMmproj 弹出视觉模型选择窗口（主线程，按钮回调）：
+// 过滤 .gguf，选择结果回填 llama 表单视觉模型路径输入框。
+func (a *App) pickLlamaMmproj() {
+	a.openFilePicker("选择视觉模型 mmproj", []string{".gguf"}, func(path string) {
+		fyne.Do(func() { a.llamaForm.SetMmprojPath(path) })
+	})
+}
+
+// openFilePicker 打开自定义文件选择窗口（主线程调用）：独立窗口可拉大、
+// 双击选择、起始目录为上次所在目录（内存 + worker.json 持久化）。
+// onPick 在主线程回调（双击文件后），由调用方决定是否派发后台 goroutine。
+func (a *App) openFilePicker(title string, exts []string, onPick func(path string)) {
+	start := a.lastPickDir
+	if start == "" {
+		start, _ = os.Getwd()
 	}
-	d.Show()
+	p := newFilePicker(a.fyneApp, title, start, exts, func(path, dir string) {
+		a.lastPickDir = dir
+		go func() {
+			if err := config.SaveLastPickDir(dir); err != nil {
+				log.Printf("保存上次打开目录失败: %v", err)
+			}
+		}()
+		onPick(path)
+	})
+	p.show()
 }
 
 // applyWorkerChoice 校验、持久化并注入用户选择的 worker 路径（后台 goroutine，

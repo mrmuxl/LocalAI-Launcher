@@ -32,6 +32,7 @@ func exeDir() string {
 type WorkerPathRecord struct {
 	WorkerPath      string `json:"workerPath"`
 	LlamaWorkerPath string `json:"llamaWorkerPath,omitempty"`
+	LastPickDir     string `json:"lastPickDir,omitempty"` // 文件选择弹窗上次所在目录
 }
 
 // WorkerSettingsPath 返回 worker 路径存档文件路径：
@@ -83,6 +84,21 @@ func SaveWorkerPathDefault(p string) (string, error) {
 // 保留 ninfer 的 WorkerPath。
 func SaveLlamaWorkerPath(p string) (string, error) {
 	return saveWorkerPathField(func(rec *WorkerPathRecord) { rec.LlamaWorkerPath = p })
+}
+
+// SaveLastPickDir 将文件选择弹窗上次所在目录写入存档（保留其余字段）。
+func SaveLastPickDir(dir string) error {
+	_, err := saveWorkerPathField(func(rec *WorkerPathRecord) { rec.LastPickDir = dir })
+	return err
+}
+
+// LoadLastPickDir 读取文件选择弹窗上次所在目录（缺文件/缺字段返回空串）。
+func LoadLastPickDir() (string, error) {
+	rec, err := loadWorkerRecord()
+	if err != nil {
+		return "", err
+	}
+	return rec.LastPickDir, nil
 }
 
 // saveWorkerPathField 读出存档、应用字段更新函数后整体写回。
