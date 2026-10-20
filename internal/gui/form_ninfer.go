@@ -36,49 +36,50 @@ type fieldDef struct {
 }
 
 // fieldDefs：34 字段，8 组，顺序与 config.Config 字段顺序一致。
+// 标签末尾括号内为对应命令行参数（来源：docs/命令行参数参考.txt 与 argv 构造契约）。
 var fieldDefs = []fieldDef{
 	// 服务（4）
-	{"服务", "Host", "监听地址", kindString},
-	{"服务", "Port", "监听端口", kindInt},
-	{"服务", "LogLevel", "日志级别（debug/info/warn/error）", kindString},
-	{"服务", "Workers", "并发 worker 数", kindInt},
+	{"服务", "Host", "监听地址（--bind）", kindString},
+	{"服务", "Port", "监听端口（--port）", kindInt},
+	{"服务", "LogLevel", "日志级别（--log-level，debug/info/warn/error）", kindString},
+	{"服务", "Workers", "并发 worker 数（--workers）", kindInt},
 	// 模型（5）
-	{"模型", "ModelName", "模型标识", kindString},
-	{"模型", "ModelPath", "模型文件/目录（空 = 自动）", kindString},
-	{"模型", "CtxSize", "上下文长度", kindInt},
-	{"模型", "Threads", "推理线程（0 = 自动）", kindInt},
-	{"模型", "Quant", "量化格式", kindString},
+	{"模型", "ModelName", "模型标识（--model）", kindString},
+	{"模型", "ModelPath", "模型文件/目录（位置参数 model.ninfer，空 = 自动）", kindString},
+	{"模型", "CtxSize", "上下文长度（--ctx）", kindInt},
+	{"模型", "Threads", "推理线程（--threads，0 = 自动）", kindInt},
+	{"模型", "Quant", "量化格式（--quant）", kindString},
 	// 采样（5）
-	{"采样", "Temperature", "采样温度", kindFloat},
-	{"采样", "TopP", "top-p", kindFloat},
-	{"采样", "TopK", "top-k", kindInt},
-	{"采样", "RepeatPenalty", "重复惩罚", kindFloat},
-	{"采样", "MaxTokens", "最大生成 token", kindInt},
+	{"采样", "Temperature", "采样温度（--temp，0..2）", kindFloat},
+	{"采样", "TopP", "top-p（--top-p，0..1）", kindFloat},
+	{"采样", "TopK", "top-k（--top-k，0..20）", kindInt},
+	{"采样", "RepeatPenalty", "重复惩罚（--repeat）", kindFloat},
+	{"采样", "MaxTokens", "最大生成 token（--max-tokens）", kindInt},
 	// 网络（4）
-	{"网络", "APIKey", "鉴权密钥（可选）", kindString},
-	{"网络", "CORSOrigins", "允许来源（逗号分隔）", kindString},
-	{"网络", "TimeoutSec", "请求超时（秒）", kindInt},
-	{"网络", "MaxConns", "最大并发连接", kindInt},
+	{"网络", "APIKey", "鉴权密钥（--api-key，可选）", kindString},
+	{"网络", "CORSOrigins", "允许来源（--cors，逗号分隔）", kindString},
+	{"网络", "TimeoutSec", "请求超时秒数（--timeout）", kindInt},
+	{"网络", "MaxConns", "最大并发连接（--max-conns）", kindInt},
 	// 安全（3）
-	{"安全", "TLS", "启用 TLS", kindBool},
-	{"安全", "CertPath", "证书路径", kindString},
-	{"安全", "KeyPath", "私钥路径", kindString},
+	{"安全", "TLS", "启用 TLS（--tls）", kindBool},
+	{"安全", "CertPath", "证书路径（--cert）", kindString},
+	{"安全", "KeyPath", "私钥路径（--key）", kindString},
 	// 观测（4）
-	{"观测", "MetricsEnabled", "启用 /metrics", kindBool},
-	{"观测", "MetricsPath", "指标路径", kindString},
-	{"观测", "LogFile", "日志文件（空 = stdout）", kindString},
-	{"观测", "AccessLog", "访问日志", kindBool},
+	{"观测", "MetricsEnabled", "启用 /metrics（--metrics）", kindBool},
+	{"观测", "MetricsPath", "指标路径（--metrics-path）", kindString},
+	{"观测", "LogFile", "日志文件（--log-file，空 = stdout）", kindString},
+	{"观测", "AccessLog", "访问日志（暂未接入命令行）", kindBool},
 	// 资源（5）
-	{"资源", "MemLimitGB", "内存上限（GB，0 = 不限）", kindInt},
-	{"资源", "SwapGB", "swap 上限（GB）", kindInt},
-	{"资源", "NumaNode", "NUMA 节点（-1 = 自动）", kindInt},
-	{"资源", "Priority", "进程优先级（low/normal/high/realtime）", kindString},
-	{"资源", "AffinityMask", "CPU 亲和掩码（空 = 默认）", kindString},
+	{"资源", "MemLimitGB", "内存上限 GB（--mem-limit-gb，0 = 不限）", kindInt},
+	{"资源", "SwapGB", "swap 上限 GB（--swap-gb）", kindInt},
+	{"资源", "NumaNode", "NUMA 节点（--numa，-1 = 自动）", kindInt},
+	{"资源", "Priority", "进程优先级（--priority，low/normal/high/realtime）", kindString},
+	{"资源", "AffinityMask", "CPU 亲和掩码（--affinity，空 = 默认）", kindString},
 	// 缓存（4）
-	{"缓存", "CacheDir", "缓存目录", kindString},
-	{"缓存", "CacheSizeMB", "缓存大小（MB）", kindInt},
-	{"缓存", "EvictPolicy", "淘汰策略（lru/fifo）", kindString},
-	{"缓存", "Prefetch", "预取开关", kindBool},
+	{"缓存", "CacheDir", "缓存目录（--cache-dir）", kindString},
+	{"缓存", "CacheSizeMB", "缓存大小 MB（--cache-mb）", kindInt},
+	{"缓存", "EvictPolicy", "淘汰策略（--evict，lru/fifo）", kindString},
+	{"缓存", "Prefetch", "预取开关（--prefetch）", kindBool},
 }
 
 // validationZh 把 config.Validate 返回的「错误码:参数」串映射为中文文案。
