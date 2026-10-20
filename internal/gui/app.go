@@ -23,9 +23,9 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
-	"ninferrmanager/internal/launcher/argv"
-	"ninferrmanager/internal/launcher/config"
-	"ninferrmanager/internal/launcher/process"
+	"llmlauncher/internal/argv"
+	"llmlauncher/internal/config"
+	"llmlauncher/internal/process"
 )
 
 // windowTitle 窗口标题（计划 T6）。

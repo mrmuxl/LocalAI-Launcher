@@ -13,7 +13,7 @@ import (
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 
-	"ninferrmanager/internal/launcher/process"
+	"llmlauncher/internal/process"
 )
 
 // newTestWindow 初始化 headless 测试应用并返回一个空测试窗口。

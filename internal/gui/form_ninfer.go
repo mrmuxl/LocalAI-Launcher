@@ -14,7 +14,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
-	"ninferrmanager/internal/launcher/config"
+	"llmlauncher/internal/config"
 )
 
 // fieldKind 描述字段输入类型。

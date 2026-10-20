@@ -17,7 +17,7 @@ package argv
 import (
 	"strconv"
 
-	"ninferrmanager/internal/launcher/config"
+	"llmlauncher/internal/config"
 )
 
 // BuildLlamaArgs 构造 llama.cpp worker 的命令行参数（不含可执行文件路径）。

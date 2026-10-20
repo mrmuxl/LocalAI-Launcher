@@ -14,7 +14,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
-	"ninferrmanager/internal/launcher/config"
+	"llmlauncher/internal/config"
 )
 
 // llamaFieldDef 是 llama 表单对单个字段的唯一声明。

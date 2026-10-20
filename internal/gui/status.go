@@ -12,7 +12,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
-	"ninferrmanager/internal/launcher/process"
+	"llmlauncher/internal/process"
 )
 
 // stateZh 状态枚举 → 中文文案（状态机 D4）。

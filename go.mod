@@ -1,4 +1,4 @@
-module ninferrmanager
+module llmlauncher
 
 go 1.26
 

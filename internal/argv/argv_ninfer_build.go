@@ -3,7 +3,7 @@ package argv
 import (
 	"strconv"
 
-	"ninferrmanager/internal/launcher/config"
+	"llmlauncher/internal/config"
 )
 
 // BuildArgs 按计划「argv 构造契约」构造 worker 命令行参数（不含可执行文件路径）。

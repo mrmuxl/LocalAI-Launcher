@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"ninferrmanager/internal/launcher/config"
+	"llmlauncher/internal/config"
 )
 
 // TestBuildLlamaArgs_fixedSegmentOrder 固定段 flag 名与顺序逐字锁定

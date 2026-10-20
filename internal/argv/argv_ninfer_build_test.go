@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"ninferrmanager/internal/launcher/config"
+	"llmlauncher/internal/config"
 )
 
 // TestBuildArgs 用表驱动用例锁定计划「argv 构造契约」：

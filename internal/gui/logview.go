@@ -11,7 +11,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 
-	"ninferrmanager/internal/launcher/process"
+	"llmlauncher/internal/process"
 )
 
 // LogView 是只读日志视图。

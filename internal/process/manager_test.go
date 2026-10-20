@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"ninferrmanager/internal/launcher/config"
+	"llmlauncher/internal/config"
 )
 
 // ---------- fake 命令构造 ----------

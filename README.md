@@ -38,5 +38,5 @@ make build-launcher
 ## 与 server 的关系
 
 - 启动器只是管理前端，不含任何服务端/推理逻辑，服务仍由 `ninfer.exe` 提供。
-- 点「启动」时按「argv 构造契约」（见 `internal/launcher/argv`）把表单配置逐字翻译成 worker 命令行参数（固定段 + 条件段 + 缓存段）再启动进程；GUI 字段与 argv flag 一一对应。
+- 点「启动」时按「argv 构造契约」（见 `internal/argv`）把表单配置逐字翻译成 worker 命令行参数（固定段 + 条件段 + 缓存段）再启动进程；GUI 字段与 argv flag 一一对应。
 - 本仓库不修改 worker 源码；`docs/scripts/windows/*.ps1` 启动脚本与启动器是同一服务包的两条等价启动途径。

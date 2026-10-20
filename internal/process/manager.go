@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"ninferrmanager/internal/launcher/argv"
-	"ninferrmanager/internal/launcher/config"
+	"llmlauncher/internal/argv"
+	"llmlauncher/internal/config"
 )
 
 // State 描述 Manager 当前所处状态，对应计划 D4 状态机：

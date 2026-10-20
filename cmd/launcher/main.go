@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"os"
 
-	"ninferrmanager/internal/launcher/gui"
-	"ninferrmanager/internal/launcher/version"
+	"llmlauncher/internal/gui"
+	"llmlauncher/internal/version"
 )
 
 func main() {
