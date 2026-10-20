@@ -33,7 +33,11 @@ func (a *App) buildLayout(window fyne.Window) {
 	}
 	a.form.errLabel.Hidden = false
 	a.llamaForm.errLabel.Hidden = true
-	tabs.OnSelected = func(*container.TabItem) { syncErrVisible() }
+	// tab 切换：校验行跟随 + 日志区切换到对应引擎的环形缓冲（互不混写）。
+	tabs.OnSelected = func(*container.TabItem) {
+		syncErrVisible()
+		a.logv.SetRing(a.ringFor(int32(tabs.SelectedIndex())))
+	}
 	syncErrVisible()
 
 	// 右栏顶部操作行：保存配置/重新加载/启动/停止（onSave/onLoad 已按当前 tab 分流）；

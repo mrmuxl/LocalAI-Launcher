@@ -44,25 +44,28 @@ const defaultLlamaWorkerPath = "llama-kvmem-server.exe"
 
 // App 组装窗口、双引擎表单、状态面板、日志视图与进程 Manager（T6 聚合根）。
 type App struct {
-	fyneApp   fyne.App
-	window    fyne.Window
-	form      *NinferForm // NInfer 引擎表单（tab 0）
-	llamaForm *LlamaForm  // llama.cpp 引擎表单（tab 1）
-	tabs      *container.AppTabs
-	status    *StatusPanel
-	logv      *LogView
-	msgLbl    *widget.Label // 保存/加载操作反馈行（与校验行分离）
-	manager   *process.Manager
-	ring      *process.RingLog
+	fyneApp    fyne.App
+	window     fyne.Window
+	form       *NinferForm // NInfer 引擎表单（tab 0）
+	llamaForm  *LlamaForm  // llama.cpp 引擎表单（tab 1）
+	tabs       *container.AppTabs
+	status     *StatusPanel
+	logv       *LogView
+	msgLbl     *widget.Label // 保存/加载操作反馈行（与校验行分离）
+	manager    *process.Manager
+	ninferRing *process.RingLog // NInfer 引擎日志环形缓冲（每引擎独立，互不混写）
+	llamaRing  *process.RingLog // llama.cpp 引擎日志环形缓冲
 
 	llamaWorkerPath string // llama.cpp worker 可执行文件路径（内存，启动用）
 	lastPickDir     string // 文件选择弹窗上次所在目录（内存 + worker.json 持久化）
 
-	mu           sync.Mutex
-	startedAt    time.Time // 最近一次进入 Running 的时间（doStart 写，tick 读）
-	lastLog      string    // 最近一条 worker 日志行（OnLine 后台线程写）
-	valSeqNinfer int64     // NInfer 表单校验代际
-	valSeqLlama  int64     // llama 表单校验代际
+	mu            sync.Mutex
+	startedAt     time.Time // 最近一次进入 Running 的时间（doStart 写，tick 读）
+	activeEngine  int32     // 当前运行引擎（0=NInfer，1=llama.cpp；atomic，OnLine 按此分流）
+	lastLogNinfer string    // NInfer 最近一条 worker 日志行（OnLine 后台线程写）
+	lastLogLlama  string    // llama.cpp 最近一条 worker 日志行（OnLine 后台线程写）
+	valSeqNinfer  int64     // NInfer 表单校验代际
+	valSeqLlama   int64     // llama 表单校验代际
 
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -78,16 +81,17 @@ func NewApp() *App {
 	window := fyneApp.NewWindow(windowTitle + " v" + version.Version + " · " + version.RepoURL)
 
 	a := &App{
-		fyneApp: fyneApp,
-		window:  window,
-		ring:    process.NewRingLog(0), // 0 → process.DefaultRingSize
-		manager: process.New(""),
-		msgLbl:  widget.NewLabel(""),
+		fyneApp:    fyneApp,
+		window:     window,
+		ninferRing: process.NewRingLog(0), // 0 → process.DefaultRingSize
+		llamaRing:  process.NewRingLog(0),
+		manager:    process.New(""),
+		msgLbl:     widget.NewLabel(""),
 	}
 
 	a.form = NewNinferForm(window)
 	a.llamaForm = NewLlamaForm(window)
-	a.logv = NewLogView(a.ring)
+	a.logv = NewLogView(a.ninferRing) // 初始 tab 为 NInfer
 	a.msgLbl.Wrapping = fyne.TextWrapWord
 
 	// 按钮回调接线（表单不预接 OnTapped，由 App 统一注入）。
@@ -405,9 +409,15 @@ func (a *App) tick() {
 		case <-t.C:
 			st := a.manager.State()
 			pid := a.manager.Pid()
+			engine := atomic.LoadInt32(&a.activeEngine)
 			a.mu.Lock()
 			startedAt := a.startedAt
-			lastLog := a.lastLog
+			var lastLog string
+			if engine == 1 {
+				lastLog = a.lastLogLlama
+			} else {
+				lastLog = a.lastLogNinfer
+			}
 			a.mu.Unlock()
 			fyne.Do(func() {
 				a.status.ApplyState(st, pid, startedAt, lastLog)
@@ -490,7 +500,8 @@ func (a *App) doStartLlama(cfg config.LlamaConfig) {
 	}
 	exe := a.llamaWorkerPathOrDef()
 	args := argv.BuildLlamaArgs(cfg)
-	a.announceCmdline(exe, args)
+	atomic.StoreInt32(&a.activeEngine, 1) // OnLine 按此分流到 llamaRing
+	a.announceCmdline(1, exe, args)
 	if err := a.manager.StartPath(exe, args); err != nil {
 		log.Printf("启动 worker 失败: %v", err)
 		fyne.Do(func() { a.status.startBtn.Enable() })
@@ -518,7 +529,8 @@ func (a *App) doStart(cfg config.Config) {
 	// GPU 选择经环境变量传递（对齐 start-backend.ps1：CUDA_VISIBLE_DEVICES + 固定 PCI_BUS_ID 排序）。
 	a.manager.SetEnv("CUDA_VISIBLE_DEVICES", cfg.Gpu)
 	a.manager.SetEnv("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
-	a.announceCmdline(exe, args)
+	atomic.StoreInt32(&a.activeEngine, 0) // OnLine 按此分流到 ninferRing
+	a.announceCmdline(0, exe, args)
 	if err := a.manager.Start(cfg); err != nil {
 		log.Printf("启动 worker 失败: %v", err)
 		fyne.Do(func() { a.status.startBtn.Enable() })
@@ -530,11 +542,11 @@ func (a *App) doStart(cfg config.Config) {
 	log.Printf("worker 已启动 (PID=%d)", a.manager.Pid())
 }
 
-// announceCmdline 把即将执行的完整命令行写入日志面板与标准日志
+// announceCmdline 把即将执行的完整命令行写入对应引擎的日志面板与标准日志
 // （goroutine 内调用；ring.Append 线程安全，UI 由 tick 周期刷新，此处立即刷一次）。
-func (a *App) announceCmdline(exe string, args []string) {
+func (a *App) announceCmdline(engine int32, exe string, args []string) {
 	cmdline := exe + " " + strings.Join(args, " ")
-	a.ring.Append("$ " + cmdline)
+	a.ringFor(engine).Append("$ " + cmdline)
 	log.Printf("启动命令行: %s", cmdline)
 	fyne.Do(func() { a.logv.Refresh() })
 }
@@ -644,12 +656,29 @@ func (a *App) onClosed() {
 }
 
 // wireLog 把 Manager 的日志行接入环形缓冲（主线程，构造期调用）。
-// OnLine 回调运行在 Manager 的后台读行 goroutine：只写 ring 与 lastLog（均线程安全），不碰 UI。
+// OnLine 回调运行在 Manager 的后台读行 goroutine：按 activeEngine 分流到
+// 对应引擎的 ring 与 lastLog（均线程安全），不碰 UI——两引擎日志互不混写。
 func (a *App) wireLog() {
 	a.manager.OnLine = func(line string) {
-		a.ring.Append(line)
+		if atomic.LoadInt32(&a.activeEngine) == 1 {
+			a.llamaRing.Append(line)
+		} else {
+			a.ninferRing.Append(line)
+		}
 		a.mu.Lock()
-		a.lastLog = line
+		if atomic.LoadInt32(&a.activeEngine) == 1 {
+			a.lastLogLlama = line
+		} else {
+			a.lastLogNinfer = line
+		}
 		a.mu.Unlock()
 	}
+}
+
+// ringFor 返回指定引擎的日志环形缓冲（0=NInfer，1=llama.cpp）。
+func (a *App) ringFor(engine int32) *process.RingLog {
+	if engine == 1 {
+		return a.llamaRing
+	}
+	return a.ninferRing
 }

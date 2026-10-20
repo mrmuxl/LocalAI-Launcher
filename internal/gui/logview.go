@@ -41,6 +41,12 @@ func (lv *LogView) Content() *container.Scroll {
 	return s
 }
 
+// SetRing 切换数据源并立即重绘（主线程调用）：tab 切换时换到对应引擎的 ring。
+func (lv *LogView) SetRing(r *process.RingLog) {
+	lv.ring = r
+	lv.Refresh()
+}
+
 // Refresh 渲染环形缓冲区内容（主线程调用；内容未变化时跳过刷新）。
 func (lv *LogView) Refresh() {
 	lines := lv.ring.Snapshot()
