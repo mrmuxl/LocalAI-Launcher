@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // exeDir 返回启动器可执行文件所在目录（便携式配置根）。
@@ -102,6 +103,11 @@ func LoadLastPickDir() (string, error) {
 	return rec.LastPickDir, nil
 }
 
+// workerFileMu 串行化对 worker.json 的读-改-写：选择推理引擎后
+// SaveWorkerPath 与 SaveLastPickDir 可能并发执行，无锁交错写会损坏 JSON
+// （实测出现过结尾多 `}` 导致启动时解析失败、每次都要重新选择）。
+var workerFileMu sync.Mutex
+
 // saveWorkerPathField 读出存档、应用字段更新函数后整体写回。
 func saveWorkerPathField(apply func(rec *WorkerPathRecord)) (string, error) {
 	return saveWorkerPathFieldTo(WorkerSettingsPath(), apply)
@@ -111,6 +117,9 @@ func saveWorkerPathField(apply func(rec *WorkerPathRecord)) (string, error) {
 // 存档损坏时不继承旧值、直接用新值覆盖：worker.json 是启动器自身设置，
 // 若因损坏而保存失败，用户每次启动都要重新选择推理引擎。
 func saveWorkerPathFieldTo(path string, apply func(rec *WorkerPathRecord)) (string, error) {
+	workerFileMu.Lock()
+	defer workerFileMu.Unlock()
+
 	rec, err := loadWorkerRecordFrom(path)
 	if err != nil {
 		log.Printf("worker 路径存档 %s 损坏（%v），将用新值覆盖", path, err)

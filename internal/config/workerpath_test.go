@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -166,5 +167,34 @@ func TestSaveWorkerPathFieldTo_overwritesCorrupted(t *testing.T) {
 	}
 	if rec.WorkerPath != want {
 		t.Fatalf("覆盖结果不一致: want %q, got %q", want, rec.WorkerPath)
+	}
+}
+
+// TestSaveWorkerPathFieldTo_concurrent 并发保存不损坏 JSON：
+// 多个 goroutine 同时读-改-写同一存档，最终文件必须是合法 JSON。
+func TestSaveWorkerPathFieldTo_concurrent(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "worker.json")
+
+	const n = 32
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			p := `C:\w\` + string(rune('a'+i%26)) + `.exe`
+			if _, err := saveWorkerPathFieldTo(file, func(rec *WorkerPathRecord) { rec.WorkerPath = p }); err != nil {
+				t.Errorf("并发保存失败: %v", err)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	rec, err := loadWorkerRecordFrom(file)
+	if err != nil {
+		t.Fatalf("并发保存后存档损坏: %v", err)
+	}
+	if rec.WorkerPath == "" {
+		t.Fatal("并发保存后 WorkerPath 不应为空")
 	}
 }
