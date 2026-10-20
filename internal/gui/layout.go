@@ -57,6 +57,12 @@ func (a *App) buildLayout(window fyne.Window) {
 	right := container.NewBorder(top, nil, nil, nil, splitter)
 	left := container.NewBorder(nil, nil, nil, nil, tabs)
 	split := container.NewHSplit(left, right)
-	split.Offset = 0.5 // 左右栏各占一半，分割条可拖动调整
+	// 初始左栏宽 = 左栏最小宽度 + 100px（取两个表单最小宽的较大者），
+	// 换算成 HSplit 的比例 offset；拖动下限仍由表单 MinSize 保证。
+	leftMin := a.form.content.MinSize().Width
+	if w := a.llamaForm.content.MinSize().Width; w > leftMin {
+		leftMin = w
+	}
+	split.Offset = float64(leftMin+100) / float64(windowSize.Width)
 	window.SetContent(container.NewBorder(nil, nil, nil, nil, split))
 }
