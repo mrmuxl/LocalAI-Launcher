@@ -22,10 +22,11 @@ make build-launcher
 
 ## 配置路径
 
-配置跟随推理程序（便携式，换程序目录即换一套配置）；推理程序为默认相对路径时，随启动器运行时工作目录解析。
+全部配置文件便携式存放于启动器 exe 同级目录（整个目录拷走即整套配置，与推理程序位置无关）：
 
-- NInfer：推理程序所在目录下的 `config.json`（32 字段）；
-- llama.cpp：推理程序所在目录下的 `llama.json`（46 字段）。
+- NInfer：启动器 exe 同级目录下的 `config.json`（32 字段）；
+- llama.cpp：启动器 exe 同级目录下的 `llama.json`（46 字段）；
+- worker 路径存档：启动器 exe 同级目录下的 `worker.json`。
 
 - 文件不存在：加载使用内置默认值，不报错；
 - JSON 损坏：加载报错，不覆盖原文件；
@@ -33,7 +34,7 @@ make build-launcher
 
 ## worker 路径
 
-`%AppData%\NinferLauncher\worker.json`：引导存档（记录两个引擎的推理程序在哪），固定放在用户配置目录，不随推理程序移动。`workerPath` 存 NInfer 的 `ninfer.exe`，`llamaWorkerPath` 存 llama.cpp 的 worker exe；在对应 tab 的「推理程序」行输入路径回车或点「打开」选择时写入，仅保存可执行文件绝对路径，下次启动直接采用。存档指向的文件被删除时，启动会静默回退默认路径并提示，可重新指定。
+启动器 exe 同级目录下的 `worker.json`：引导存档（记录两个引擎的推理程序在哪）。`workerPath` 存 NInfer 的 `ninfer.exe`，`llamaWorkerPath` 存 llama.cpp 的 worker exe；在对应 tab 的「推理程序」行输入路径回车或点「打开」选择时写入，仅保存可执行文件绝对路径，下次启动直接采用。存档指向的文件被删除时，启动会静默回退默认路径并提示，可重新指定。
 
 ## 与 server 的关系
 

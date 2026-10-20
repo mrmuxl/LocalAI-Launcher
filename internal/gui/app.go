@@ -291,9 +291,9 @@ func (a *App) Run() {
 }
 
 // doLoadInitial 首次载入两个引擎的配置（initWorkerPath 末尾调用，路径已确定）。
-// 各引擎配置放各自推理程序所在目录；失败回退默认值，错误经 log.Printf 留痕。
+// 各引擎配置放启动器 exe 同级目录；失败回退默认值，错误经 log.Printf 留痕。
 func (a *App) doLoadInitial() {
-	path := config.ConfigPathFor(a.manager.Path(), "config.json")
+	path := config.ConfigPathFor("config.json")
 	cfg, err := config.LoadConfig(path)
 	if err != nil {
 		log.Printf("加载配置 %s 失败: %v，使用默认配置", path, err)
@@ -302,7 +302,7 @@ func (a *App) doLoadInitial() {
 		a.applyConfig(cfg, "✓ 配置已加载")
 	}
 
-	lpath := config.ConfigPathFor(a.llamaWorkerPathOrDef(), "llama.json")
+	lpath := config.ConfigPathFor("llama.json")
 	lcfg, lerr := config.LoadLlamaConfig(lpath)
 	if lerr != nil {
 		log.Printf("加载 llama 配置 %s 失败: %v，使用默认配置", lpath, lerr)
@@ -513,7 +513,7 @@ func (a *App) doSaveLlama(cfg config.LlamaConfig, errs []string) {
 		})
 		return
 	}
-	path := config.ConfigPathFor(a.llamaWorkerPathOrDef(), "llama.json")
+	path := config.ConfigPathFor("llama.json")
 	if err := config.SaveLlamaConfig(cfg, path); err != nil {
 		log.Printf("保存 llama 配置失败: %v", err)
 		fyne.Do(func() { a.msgLbl.SetText("保存失败：" + err.Error()) })
@@ -536,7 +536,7 @@ func (a *App) doSave(cfg config.Config, errs []string) {
 		})
 		return
 	}
-	path := config.ConfigPathFor(a.manager.Path(), "config.json")
+	path := config.ConfigPathFor("config.json")
 	if err := config.SaveConfig(cfg, path); err != nil {
 		log.Printf("保存配置失败: %v", err)
 		fyne.Do(func() { a.msgLbl.SetText("保存失败：" + err.Error()) })
@@ -550,7 +550,7 @@ func (a *App) doSave(cfg config.Config, errs []string) {
 func (a *App) onLoad() {
 	if a.tabs != nil && a.tabs.SelectedIndex() == 1 {
 		go func() {
-			path := config.ConfigPathFor(a.llamaWorkerPathOrDef(), "llama.json")
+			path := config.ConfigPathFor("llama.json")
 			cfg, err := config.LoadLlamaConfig(path)
 			if err != nil {
 				log.Printf("加载 llama 配置 %s 失败: %v", path, err)
@@ -562,7 +562,7 @@ func (a *App) onLoad() {
 		return
 	}
 	go func() {
-		path := config.ConfigPathFor(a.manager.Path(), "config.json")
+		path := config.ConfigPathFor("config.json")
 		cfg, err := config.LoadConfig(path)
 		if err != nil {
 			log.Printf("加载配置 %s 失败: %v", path, err)

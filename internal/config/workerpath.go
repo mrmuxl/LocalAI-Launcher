@@ -1,7 +1,9 @@
 // workerpath.go 持久化用户通过文件选择框选定的 worker 可执行文件路径。
 //
 // 与 32 字段的业务配置（config.json）分离：worker 路径是启动器自身设置，
-// 不参与业务校验与表单，单独存档为 UserConfigDir()/NinferLauncher/worker.json。
+// 不参与业务校验与表单，单独存档为启动器 exe 同级目录下的 worker.json。
+// 全部配置文件（config.json/llama.json/worker.json）均便携式存放于
+// 启动器 exe 同级目录。
 package config
 
 import (
@@ -10,6 +12,19 @@ import (
 	"os"
 	"path/filepath"
 )
+
+// exeDir 返回启动器可执行文件所在目录（便携式配置根）。
+// os.Executable 失败时回退当前工作目录，再失败回退 "."。
+func exeDir() string {
+	exe, err := os.Executable()
+	if err != nil {
+		if wd, wdErr := os.Getwd(); wdErr == nil {
+			return wd
+		}
+		return "."
+	}
+	return filepath.Dir(exe)
+}
 
 // WorkerPathRecord worker.json 的顶层结构（camelCase，与 Config tag 风格一致）。
 // 双引擎各存一份 worker 路径；旧存档只有 workerPath 字段，读取时
@@ -20,21 +35,16 @@ type WorkerPathRecord struct {
 }
 
 // WorkerSettingsPath 返回 worker 路径存档文件路径：
-// UserConfigDir()/NinferLauncher/worker.json（与主配置同目录）。
-func WorkerSettingsPath() (string, error) {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		return "", fmt.Errorf("获取用户配置目录失败: %w", err)
-	}
-	return filepath.Join(dir, "NinferLauncher", "worker.json"), nil
+// 启动器 exe 同级目录下的 worker.json。
+func WorkerSettingsPath() string {
+	return filepath.Join(exeDir(), "worker.json")
 }
 
-// ConfigPathFor 返回推理程序所在目录下的指定配置文件名：
-// 配置持久化文件跟随推理程序（便携式，换程序目录即换一套配置）。
-// workerPath 为相对路径（如默认值 ninfer.exe）时，随运行时工作目录解析。
+// ConfigPathFor 返回启动器 exe 同级目录下的指定配置文件名：
+// 配置持久化文件与启动器同目录（便携式，整个目录拷走即整套配置）。
 // filename 如 "config.json"（ninfer）或 "llama.json"（llama.cpp）。
-func ConfigPathFor(workerPath, filename string) string {
-	return filepath.Join(filepath.Dir(workerPath), filename)
+func ConfigPathFor(filename string) string {
+	return filepath.Join(exeDir(), filename)
 }
 
 // LoadWorkerPath 读取已保存的 worker 路径。
@@ -59,11 +69,7 @@ func LoadLlamaWorkerPath() (string, error) {
 
 // loadWorkerRecord 读取完整存档记录（测试与两个 Load 入口共用）。
 func loadWorkerRecord() (WorkerPathRecord, error) {
-	path, err := WorkerSettingsPath()
-	if err != nil {
-		return WorkerPathRecord{}, err
-	}
-	return loadWorkerRecordFrom(path)
+	return loadWorkerRecordFrom(WorkerSettingsPath())
 }
 
 // SaveWorkerPathDefault 将 p 写入默认存档文件的 WorkerPath 字段：
@@ -81,10 +87,7 @@ func SaveLlamaWorkerPath(p string) (string, error) {
 
 // saveWorkerPathField 读出存档、应用字段更新函数后整体写回。
 func saveWorkerPathField(apply func(rec *WorkerPathRecord)) (string, error) {
-	path, err := WorkerSettingsPath()
-	if err != nil {
-		return "", err
-	}
+	path := WorkerSettingsPath()
 	rec, err := loadWorkerRecordFrom(path)
 	if err != nil {
 		return path, err

@@ -78,18 +78,33 @@ func TestSaveLlamaWorkerPath_preservesNinferPath(t *testing.T) {
 	}
 }
 
-// Test_ConfigPathFor_when_workerPathGiven_returnsSameDir
-// 配置文件跟随推理程序：绝对路径 → 同目录指定文件名；相对路径 → 工作目录。
-func Test_ConfigPathFor_when_workerPathGiven_returnsSameDir(t *testing.T) {
-	abs := filepath.Join("D:", "ninfer", "ninfer.exe")
-	if got := ConfigPathFor(abs, "config.json"); got != filepath.Join("D:", "ninfer", "config.json") {
-		t.Errorf("ConfigPathFor(abs) = %q, want same dir config.json", got)
+// Test_ConfigPathFor_returnsExeDirFile
+// 配置文件放启动器 exe 同级目录：返回 exeDir()/filename。
+func Test_ConfigPathFor_returnsExeDirFile(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Skipf("os.Executable 不可用: %v", err)
 	}
-	if got := ConfigPathFor(abs, "llama.json"); got != filepath.Join("D:", "ninfer", "llama.json") {
-		t.Errorf("ConfigPathFor(abs, llama.json) = %q, want same dir llama.json", got)
+	want := filepath.Join(filepath.Dir(exe), "config.json")
+	if got := ConfigPathFor("config.json"); got != want {
+		t.Errorf("ConfigPathFor(config.json) = %q, want %q", got, want)
 	}
-	if got := ConfigPathFor("ninfer.exe", "config.json"); got != "config.json" {
-		t.Errorf("ConfigPathFor(relative) = %q, want config.json in work dir", got)
+	wantLlama := filepath.Join(filepath.Dir(exe), "llama.json")
+	if got := ConfigPathFor("llama.json"); got != wantLlama {
+		t.Errorf("ConfigPathFor(llama.json) = %q, want %q", got, wantLlama)
+	}
+}
+
+// Test_WorkerSettingsPath_returnsExeDirWorkerJSON
+// worker.json 存档放启动器 exe 同级目录。
+func Test_WorkerSettingsPath_returnsExeDirWorkerJSON(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Skipf("os.Executable 不可用: %v", err)
+	}
+	want := filepath.Join(filepath.Dir(exe), "worker.json")
+	if got := WorkerSettingsPath(); got != want {
+		t.Errorf("WorkerSettingsPath() = %q, want %q", got, want)
 	}
 }
 
