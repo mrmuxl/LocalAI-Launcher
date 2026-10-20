@@ -53,7 +53,7 @@ func Test_LoadConfig_when_jsonCorrupt_returnsError(t *testing.T) {
 // 文件存在但字段缺失：以默认值为底，文件中出现的字段覆盖对应默认值。
 func Test_LoadConfig_when_partialJSON_mergesOntoDefaults(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
-	partial := `{"port":9090,"workers":8,"modelName":"custom-model"}`
+	partial := `{"port":9090,"concurrency":4,"kvType":"fp8"}`
 	if err := os.WriteFile(path, []byte(partial), 0o644); err != nil {
 		t.Fatalf("write partial file: %v", err)
 	}
@@ -63,13 +63,13 @@ func Test_LoadConfig_when_partialJSON_mergesOntoDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig(partial) unexpected error: %v", err)
 	}
-	if cfg.Port != 9090 || cfg.Workers != 8 || cfg.ModelName != "custom-model" {
-		t.Errorf("overridden fields wrong: Port=%d Workers=%d ModelName=%q",
-			cfg.Port, cfg.Workers, cfg.ModelName)
+	if cfg.Port != 9090 || cfg.Concurrency != 4 || cfg.KvType != "fp8" {
+		t.Errorf("overridden fields wrong: Port=%d Concurrency=%d KvType=%q",
+			cfg.Port, cfg.Concurrency, cfg.KvType)
 	}
-	if cfg.Host != "127.0.0.1" || cfg.LogLevel != "info" || cfg.CtxSize != 32768 {
-		t.Errorf("untouched fields not defaulted: Host=%q LogLevel=%q CtxSize=%d",
-			cfg.Host, cfg.LogLevel, cfg.CtxSize)
+	if cfg.ListenHost != "127.0.0.1" || cfg.Context != 131072 || cfg.Budget != 36864 {
+		t.Errorf("untouched fields not defaulted: ListenHost=%q Context=%d Budget=%d",
+			cfg.ListenHost, cfg.Context, cfg.Budget)
 	}
 }
 

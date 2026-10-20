@@ -55,20 +55,20 @@ func TestWindowConstruction(t *testing.T) {
 	}
 }
 
-// TestFormFieldCount 表单控件数必须为 34（30 Entry + 4 Check，8 组）。
+// TestFormFieldCount 表单控件数必须为 32（9 组）。
 func TestFormFieldCount(t *testing.T) {
 	w := newTestWindow(t)
 	f := NewNinferForm(w)
 
-	if got := f.CountFields(); got != 34 {
-		t.Fatalf("字段定义数 = %d，期望 34", got)
+	if got := f.CountFields(); got != 32 {
+		t.Fatalf("字段定义数 = %d，期望 32", got)
 	}
-	if got := len(f.entries) + len(f.checks) + len(f.selects); got != 34 {
-		t.Fatalf("实际控件数 = %d（Entry %d + Check %d + Select %d），期望 34",
+	if got := len(f.entries) + len(f.checks) + len(f.selects); got != 32 {
+		t.Fatalf("实际控件数 = %d（Entry %d + Check %d + Select %d），期望 32",
 			got, len(f.entries), len(f.checks), len(f.selects))
 	}
-	if got := len(f.GroupNames()); got != 8 {
-		t.Fatalf("分组数 = %d，期望 8", got)
+	if got := len(f.GroupNames()); got != 9 {
+		t.Fatalf("分组数 = %d，期望 9", got)
 	}
 }
 

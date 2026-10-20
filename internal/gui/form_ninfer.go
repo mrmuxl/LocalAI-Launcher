@@ -30,87 +30,65 @@ const (
 
 // fieldDef 是表单对单个字段的唯一声明。
 type fieldDef struct {
-	group string
-	name  string
-	label string
-	kind  fieldKind
+	group   string
+	name    string
+	label   string
+	kind    fieldKind
+	options []string // kindSelect 的选项
 }
 
-// fieldDefs：34 字段，8 组，顺序与 config.Config 字段顺序一致。
+// fieldDefs：32 字段，9 组，顺序与 config.Config 字段顺序一致。
+// 字段与默认值对齐 start-ninfer.bat 默认配方（真实 ninfer-kvmem-server.exe 参数）；
 // 标签末尾括号内为对应命令行参数（来源：docs/命令行参数参考.txt 与 argv 构造契约）。
 var fieldDefs = []fieldDef{
-	// 服务（4）
-	{"服务", "Host", "监听地址（--bind）", kindString},
-	{"服务", "Port", "监听端口（--port）", kindInt},
-	{"服务", "LogLevel", "日志级别（--log-level）", kindSelect},
-	{"服务", "Workers", "并发 worker 数（--workers）", kindInt},
-	// 模型（5）
-	{"模型", "ModelName", "模型标识（--model）", kindString},
-	{"模型", "ModelPath", "模型文件/目录（位置参数 model.ninfer，空 = 自动）", kindString},
-	{"模型", "CtxSize", "上下文长度（--ctx）", kindInt},
-	{"模型", "Threads", "推理线程（--threads，0 = 自动）", kindInt},
-	{"模型", "Quant", "量化格式（--quant）", kindString},
-	// 采样（5）
-	{"采样", "Temperature", "采样温度（--temp，0..2）", kindFloat},
-	{"采样", "TopP", "top-p（--top-p，0..1）", kindFloat},
-	{"采样", "TopK", "top-k（--top-k，0..20）", kindInt},
-	{"采样", "RepeatPenalty", "重复惩罚（--repeat）", kindFloat},
-	{"采样", "MaxTokens", "最大生成 token（--max-tokens）", kindInt},
-	// 网络（4）
-	{"网络", "APIKey", "鉴权密钥（--api-key，可选）", kindString},
-	{"网络", "CORSOrigins", "允许来源（--cors，逗号分隔）", kindString},
-	{"网络", "TimeoutSec", "请求超时秒数（--timeout）", kindInt},
-	{"网络", "MaxConns", "最大并发连接（--max-conns）", kindInt},
-	// 安全（3）
-	{"安全", "TLS", "启用 TLS（--tls）", kindBool},
-	{"安全", "CertPath", "证书路径（--cert）", kindString},
-	{"安全", "KeyPath", "私钥路径（--key）", kindString},
-	// 观测（4）
-	{"观测", "MetricsEnabled", "启用 /metrics（--metrics）", kindBool},
-	{"观测", "MetricsPath", "指标路径（--metrics-path）", kindString},
-	{"观测", "LogFile", "日志文件（--log-file，空 = stdout）", kindString},
-	{"观测", "AccessLog", "访问日志（暂未接入命令行）", kindBool},
-	// 资源（5）
-	{"资源", "MemLimitGB", "内存上限 GB（--mem-limit-gb，0 = 不限）", kindInt},
-	{"资源", "SwapGB", "swap 上限 GB（--swap-gb）", kindInt},
-	{"资源", "NumaNode", "NUMA 节点（--numa，-1 = 自动）", kindInt},
-	{"资源", "Priority", "进程优先级（--priority，low/normal/high/realtime）", kindString},
-	{"资源", "AffinityMask", "CPU 亲和掩码（--affinity，空 = 默认）", kindString},
-	// 缓存（4）
-	{"缓存", "CacheDir", "缓存目录（--cache-dir）", kindString},
-	{"缓存", "CacheSizeMB", "缓存大小 MB（--cache-mb）", kindInt},
-	{"缓存", "EvictPolicy", "淘汰策略（--evict，lru/fifo）", kindString},
-	{"缓存", "Prefetch", "预取开关（--prefetch）", kindBool},
+	// 服务（3）
+	{"服务", "ListenHost", "监听地址（--host）", kindString, nil},
+	{"服务", "Port", "监听端口（--port）", kindInt, nil},
+	{"服务", "Concurrency", "并发解码请求数（--max-concurrency，1..8）", kindInt, nil},
+	// 模型（3）
+	{"模型", "ModelPath", "模型文件（位置参数 model.ninfer）", kindString, nil},
+	{"模型", "Gpu", "GPU 编号/UUID（CUDA_VISIBLE_DEVICES，逗号分隔）", kindString, nil},
+	{"模型", "StageLayers", "每卡层数（--stage-layers，空 = 单卡）", kindString, nil},
+	// 上下文与内存（6）
+	{"上下文与内存", "Context", "上下文上限（--max-context）", kindInt, nil},
+	{"上下文与内存", "Budget", "历史预算 B（--kvmem-budget，64 对齐）", kindInt, nil},
+	{"上下文与内存", "Reserve", "生成保留 R（--kvmem-gen-reserve，64 对齐）", kindInt, nil},
+	{"上下文与内存", "HostMiB", "Host KV 预算（--kvmem-host-mib，MiB）", kindInt, nil},
+	{"上下文与内存", "MaxTokens", "默认输出上限（--default-max-tokens）", kindInt, nil},
+	{"上下文与内存", "Prefill", "prefill 块（--prefill-chunk，128 对齐）", kindInt, nil},
+	// KV 缓存（5）
+	{"KV 缓存", "KvType", "KV 存储（--kv-dtype）", kindSelect,
+		[]string{"bf16", "int8", "fp8", "nvfp4", "k8v4", "rk8v4", "rk4v4", "rk4v4-e8", "rk2v4-e8"}},
+	{"KV 缓存", "SinkTokens", "常驻前缀（--kvmem-sink-tokens）", kindInt, nil},
+	{"KV 缓存", "RecentTokens", "常驻后缀（--kvmem-recent-tokens，≥64）", kindInt, nil},
+	{"KV 缓存", "RetainedSessions", "保留历史数（--kvmem-sessions，1..16）", kindInt, nil},
+	{"KV 缓存", "FastPrefill", "快速 prefill 内核（--fast-prefill-kernel）", kindBool, nil},
+	// 推测解码（4）
+	{"推测解码", "MtpDrafts", "MTP 草稿数（--draft-tokens，0 = 关闭）", kindInt, nil},
+	{"推测解码", "NgramDrafts", "ngram 草稿数（--ngram-draft-tokens，0..63）", kindInt, nil},
+	{"推测解码", "NgramMinMatch", "ngram 最短匹配（--ngram-min-match，4..64）", kindInt, nil},
+	{"推测解码", "AdaptiveMtp", "自适应 MTP（--adaptive-mtp）", kindBool, nil},
+	// 视觉（3）
+	{"视觉", "Vision", "启用视觉（--vision）", kindBool, nil},
+	{"视觉", "VisionResidency", "视觉驻留（--vision-residency）", kindSelect,
+		[]string{"resident", "cpu"}},
+	{"视觉", "VisionTokens", "单媒体合并上限（--vision-max-merged）", kindInt, nil},
+	// 思考与设备（2）
+	{"思考与设备", "ThinkingBudget", "默认思考预算（--default-thinking-budget，0 = 不传）", kindInt, nil},
+	{"思考与设备", "DeviceProfile", "设备档案（--device-profile）", kindSelect,
+		[]string{"off", "auto"}},
+	// SSD 分层（2）
+	{"SSD 分层", "DiskPath", "SSD 分层目录（--kvmem-disk-path，空 = 不传）", kindString, nil},
+	{"SSD 分层", "DiskMiB", "SSD 配额（--kvmem-disk-mib，MiB）", kindInt, nil},
+	// 检索调优（4）
+	{"检索调优", "NoLrfu", "关闭 LRFU（不勾选 = 启用 --kvmem-lrfu）", kindBool, nil},
+	{"检索调优", "LrfuLambda", "历史衰减（--kvmem-lrfu-lambda，0..1）", kindFloat, nil},
+	{"检索调优", "LrfuTopFraction", "命中比例（--kvmem-lrfu-top-frac，(0,1]）", kindFloat, nil},
+	{"检索调优", "ScoreAggregation", "评分聚合（--kvmem-score-agg）", kindSelect,
+		[]string{"mean", "max"}},
 }
 
-// validationZh 把 config.Validate 返回的「错误码:参数」串映射为中文文案。
-// 键为错误码前缀；含 %s 的模板填入冒号后的参数值。
-var validationZh = map[string]string{
-	"V1:Port=":                             "监听端口 %s 超出范围 [1,65535]",
-	"V1:Workers=":                          "并发 worker 数 %s 超出范围 [1,256]",
-	"V1:CtxSize=":                          "上下文长度 %s 超出范围 [1,1048576]",
-	"V2:MaxTokens=":                        "最大生成 token %s 必须 ≥ 1",
-	"V2:TimeoutSec=":                       "请求超时 %s 必须 ≥ 1",
-	"V2:MaxConns=":                         "最大并发连接 %s 超出范围 [1,1024]",
-	"V3:Temperature=":                      "采样温度 %s 必须 ≥ 0",
-	"V3:TopP=":                             "top-p %s 超出范围 [0,1]",
-	"V3:TopK=":                             "top-k %s 必须 ≥ 0",
-	"V3:RepeatPenalty=":                    "重复惩罚 %s 必须 > 0",
-	"V4:TLS enabled but CertPath is empty": "已启用 TLS 但未填写证书路径",
-	"V4:cert file not found: ":             "证书文件不存在：%s",
-	"V4:TLS enabled but KeyPath is empty":  "已启用 TLS 但未填写私钥路径",
-	"V4:key file not found: ":              "私钥文件不存在：%s",
-	"V5:LogLevel=":                         "日志级别 %s 无效（应为 debug/info/warn/error 之一）",
-	"V5:Priority=":                         "进程优先级 %s 无效（应为 low/normal/high/realtime 之一）",
-	"V5:EvictPolicy=":                      "淘汰策略 %s 无效（应为 lru/fifo 之一）",
-	"V6:MemLimitGB=":                       "内存上限 %s 必须 ≥ 0",
-	"V6:SwapGB=":                           "swap 上限 %s 必须 ≥ 0",
-	"V6:NumaNode=":                         "NUMA 节点 %s 必须为 -1 或 ≥ 0",
-	"V6:CacheSizeMB=":                      "缓存大小 %s 必须 ≥ 1",
-	"V7:path contains NUL byte":            "路径字段包含非法字符（NUL）",
-}
-
-// NinferForm 持有全部表单控件（34 个）与校验状态行。
+// NinferForm 持有全部表单控件（32 个）与校验状态行。
 // 所有方法必须运行在主线程（Fyne 约束）。
 type NinferForm struct {
 	window   fyne.Window
@@ -132,9 +110,6 @@ type NinferForm struct {
 
 // entryWidth 统一输入框固定宽度（所有文本输入行一致，不随窗口拉伸）。
 const entryWidth = 300
-
-// logLevelOptions 日志级别下拉框选项（与 config.Validate 的合法值一致）。
-var logLevelOptions = []string{"debug", "info", "warn", "error"}
 
 // fixedWidthLayout 将子对象约束为固定宽度、占满可用高度。
 // 必须用 Container+Layout 而非包装器 struct：包装器会经方法提升意外满足
@@ -181,8 +156,7 @@ func NewNinferForm(window fyne.Window) *NinferForm {
 			f.checks[d.name] = c
 			controls[d.name] = c
 		case kindSelect:
-			s := widget.NewSelect(logLevelOptions, func(string) { f.notifyChange() })
-			s.SetSelected(config.DefLogLevel) // 未加载配置前的兜底选中项
+			s := widget.NewSelect(d.options, func(string) { f.notifyChange() })
 			f.selects[d.name] = s
 			controls[d.name] = s
 		default:
@@ -275,7 +249,7 @@ func (f *NinferForm) buildModelPathRow(labelWidth float32) fyne.CanvasObject {
 		}
 	})
 	return container.NewHBox(
-		newFixedWidth(widget.NewLabel("模型文件/目录（位置参数 model.ninfer，空 = 自动）"), labelWidth),
+		newFixedWidth(widget.NewLabel("模型文件（位置参数 model.ninfer）"), labelWidth),
 		newFixedWidth(f.entries["ModelPath"], entryWidth),
 		openBtn,
 		layout.NewSpacer(),
@@ -326,40 +300,38 @@ func (f *NinferForm) GroupNames() []string {
 
 // SetFieldsFrom 用配置填充全部控件（主线程）。
 func (f *NinferForm) SetFieldsFrom(cfg config.Config) {
-	f.entries["Host"].SetText(cfg.Host)
+	f.entries["ListenHost"].SetText(cfg.ListenHost)
 	f.entries["Port"].SetText(strconv.Itoa(cfg.Port))
-	f.selects["LogLevel"].SetSelected(cfg.LogLevel)
-	f.entries["Workers"].SetText(strconv.Itoa(cfg.Workers))
-	f.entries["ModelName"].SetText(cfg.ModelName)
+	f.entries["Concurrency"].SetText(strconv.Itoa(cfg.Concurrency))
 	f.entries["ModelPath"].SetText(cfg.ModelPath)
-	f.entries["CtxSize"].SetText(strconv.Itoa(cfg.CtxSize))
-	f.entries["Threads"].SetText(strconv.Itoa(cfg.Threads))
-	f.entries["Quant"].SetText(cfg.Quant)
-	f.entries["Temperature"].SetText(strconv.FormatFloat(cfg.Temperature, 'f', -1, 64))
-	f.entries["TopP"].SetText(strconv.FormatFloat(cfg.TopP, 'f', -1, 64))
-	f.entries["TopK"].SetText(strconv.Itoa(cfg.TopK))
-	f.entries["RepeatPenalty"].SetText(strconv.FormatFloat(cfg.RepeatPenalty, 'f', -1, 64))
+	f.entries["Gpu"].SetText(cfg.Gpu)
+	f.entries["StageLayers"].SetText(cfg.StageLayers)
+	f.entries["Context"].SetText(strconv.Itoa(cfg.Context))
+	f.entries["Budget"].SetText(strconv.Itoa(cfg.Budget))
+	f.entries["Reserve"].SetText(strconv.Itoa(cfg.Reserve))
+	f.entries["HostMiB"].SetText(strconv.Itoa(cfg.HostMiB))
 	f.entries["MaxTokens"].SetText(strconv.Itoa(cfg.MaxTokens))
-	f.entries["APIKey"].SetText(cfg.APIKey)
-	f.entries["CORSOrigins"].SetText(cfg.CORSOrigins)
-	f.entries["TimeoutSec"].SetText(strconv.Itoa(cfg.TimeoutSec))
-	f.entries["MaxConns"].SetText(strconv.Itoa(cfg.MaxConns))
-	f.checks["TLS"].SetChecked(cfg.TLS)
-	f.entries["CertPath"].SetText(cfg.CertPath)
-	f.entries["KeyPath"].SetText(cfg.KeyPath)
-	f.checks["MetricsEnabled"].SetChecked(cfg.MetricsEnabled)
-	f.entries["MetricsPath"].SetText(cfg.MetricsPath)
-	f.entries["LogFile"].SetText(cfg.LogFile)
-	f.checks["AccessLog"].SetChecked(cfg.AccessLog)
-	f.entries["MemLimitGB"].SetText(strconv.Itoa(cfg.MemLimitGB))
-	f.entries["SwapGB"].SetText(strconv.Itoa(cfg.SwapGB))
-	f.entries["NumaNode"].SetText(strconv.Itoa(cfg.NumaNode))
-	f.entries["Priority"].SetText(cfg.Priority)
-	f.entries["AffinityMask"].SetText(cfg.AffinityMask)
-	f.entries["CacheDir"].SetText(cfg.CacheDir)
-	f.entries["CacheSizeMB"].SetText(strconv.Itoa(cfg.CacheSizeMB))
-	f.entries["EvictPolicy"].SetText(cfg.EvictPolicy)
-	f.checks["Prefetch"].SetChecked(cfg.Prefetch)
+	f.entries["Prefill"].SetText(strconv.Itoa(cfg.Prefill))
+	f.selects["KvType"].SetSelected(cfg.KvType)
+	f.entries["SinkTokens"].SetText(strconv.Itoa(cfg.SinkTokens))
+	f.entries["RecentTokens"].SetText(strconv.Itoa(cfg.RecentTokens))
+	f.entries["RetainedSessions"].SetText(strconv.Itoa(cfg.RetainedSessions))
+	f.checks["FastPrefill"].SetChecked(cfg.FastPrefill)
+	f.entries["MtpDrafts"].SetText(strconv.Itoa(cfg.MtpDrafts))
+	f.entries["NgramDrafts"].SetText(strconv.Itoa(cfg.NgramDrafts))
+	f.entries["NgramMinMatch"].SetText(strconv.Itoa(cfg.NgramMinMatch))
+	f.checks["AdaptiveMtp"].SetChecked(cfg.AdaptiveMtp)
+	f.checks["Vision"].SetChecked(cfg.Vision)
+	f.selects["VisionResidency"].SetSelected(cfg.VisionResidency)
+	f.entries["VisionTokens"].SetText(strconv.Itoa(cfg.VisionTokens))
+	f.entries["ThinkingBudget"].SetText(strconv.Itoa(cfg.ThinkingBudget))
+	f.selects["DeviceProfile"].SetSelected(cfg.DeviceProfile)
+	f.entries["DiskPath"].SetText(cfg.DiskPath)
+	f.entries["DiskMiB"].SetText(strconv.Itoa(cfg.DiskMiB))
+	f.checks["NoLrfu"].SetChecked(cfg.NoLrfu)
+	f.entries["LrfuLambda"].SetText(strconv.FormatFloat(cfg.LrfuLambda, 'f', -1, 64))
+	f.entries["LrfuTopFraction"].SetText(strconv.FormatFloat(cfg.LrfuTopFraction, 'f', -1, 64))
+	f.selects["ScoreAggregation"].SetSelected(cfg.ScoreAggregation)
 }
 
 // CollectConfig 从控件收集当前配置（主线程轻量读）。
@@ -368,40 +340,38 @@ func (f *NinferForm) CollectConfig() (config.Config, []string) {
 	var cfg config.Config
 	var errs []string
 
-	cfg.Host = f.entries["Host"].Text
+	cfg.ListenHost = f.entries["ListenHost"].Text
 	cfg.Port, errs = collectInt(f.entries["Port"], "监听端口", cfg.Port, errs)
-	cfg.LogLevel = f.selects["LogLevel"].Selected
-	cfg.Workers, errs = collectInt(f.entries["Workers"], "并发 worker 数", cfg.Workers, errs)
-	cfg.ModelName = f.entries["ModelName"].Text
+	cfg.Concurrency, errs = collectInt(f.entries["Concurrency"], "并发解码请求数", cfg.Concurrency, errs)
 	cfg.ModelPath = f.entries["ModelPath"].Text
-	cfg.CtxSize, errs = collectInt(f.entries["CtxSize"], "上下文长度", cfg.CtxSize, errs)
-	cfg.Threads, errs = collectInt(f.entries["Threads"], "推理线程", cfg.Threads, errs)
-	cfg.Quant = f.entries["Quant"].Text
-	cfg.Temperature, errs = collectFloat(f.entries["Temperature"], "采样温度", cfg.Temperature, errs)
-	cfg.TopP, errs = collectFloat(f.entries["TopP"], "top-p", cfg.TopP, errs)
-	cfg.TopK, errs = collectInt(f.entries["TopK"], "top-k", cfg.TopK, errs)
-	cfg.RepeatPenalty, errs = collectFloat(f.entries["RepeatPenalty"], "重复惩罚", cfg.RepeatPenalty, errs)
-	cfg.MaxTokens, errs = collectInt(f.entries["MaxTokens"], "最大生成 token", cfg.MaxTokens, errs)
-	cfg.APIKey = f.entries["APIKey"].Text
-	cfg.CORSOrigins = f.entries["CORSOrigins"].Text
-	cfg.TimeoutSec, errs = collectInt(f.entries["TimeoutSec"], "请求超时", cfg.TimeoutSec, errs)
-	cfg.MaxConns, errs = collectInt(f.entries["MaxConns"], "最大并发连接", cfg.MaxConns, errs)
-	cfg.TLS = f.checks["TLS"].Checked
-	cfg.CertPath = f.entries["CertPath"].Text
-	cfg.KeyPath = f.entries["KeyPath"].Text
-	cfg.MetricsEnabled = f.checks["MetricsEnabled"].Checked
-	cfg.MetricsPath = f.entries["MetricsPath"].Text
-	cfg.LogFile = f.entries["LogFile"].Text
-	cfg.AccessLog = f.checks["AccessLog"].Checked
-	cfg.MemLimitGB, errs = collectInt(f.entries["MemLimitGB"], "内存上限", cfg.MemLimitGB, errs)
-	cfg.SwapGB, errs = collectInt(f.entries["SwapGB"], "swap 上限", cfg.SwapGB, errs)
-	cfg.NumaNode, errs = collectInt(f.entries["NumaNode"], "NUMA 节点", cfg.NumaNode, errs)
-	cfg.Priority = f.entries["Priority"].Text
-	cfg.AffinityMask = f.entries["AffinityMask"].Text
-	cfg.CacheDir = f.entries["CacheDir"].Text
-	cfg.CacheSizeMB, errs = collectInt(f.entries["CacheSizeMB"], "缓存大小", cfg.CacheSizeMB, errs)
-	cfg.EvictPolicy = f.entries["EvictPolicy"].Text
-	cfg.Prefetch = f.checks["Prefetch"].Checked
+	cfg.Gpu = f.entries["Gpu"].Text
+	cfg.StageLayers = f.entries["StageLayers"].Text
+	cfg.Context, errs = collectInt(f.entries["Context"], "上下文上限", cfg.Context, errs)
+	cfg.Budget, errs = collectInt(f.entries["Budget"], "历史预算", cfg.Budget, errs)
+	cfg.Reserve, errs = collectInt(f.entries["Reserve"], "生成保留", cfg.Reserve, errs)
+	cfg.HostMiB, errs = collectInt(f.entries["HostMiB"], "Host KV 预算", cfg.HostMiB, errs)
+	cfg.MaxTokens, errs = collectInt(f.entries["MaxTokens"], "默认输出上限", cfg.MaxTokens, errs)
+	cfg.Prefill, errs = collectInt(f.entries["Prefill"], "prefill 块", cfg.Prefill, errs)
+	cfg.KvType = f.selects["KvType"].Selected
+	cfg.SinkTokens, errs = collectInt(f.entries["SinkTokens"], "常驻前缀", cfg.SinkTokens, errs)
+	cfg.RecentTokens, errs = collectInt(f.entries["RecentTokens"], "常驻后缀", cfg.RecentTokens, errs)
+	cfg.RetainedSessions, errs = collectInt(f.entries["RetainedSessions"], "保留历史数", cfg.RetainedSessions, errs)
+	cfg.FastPrefill = f.checks["FastPrefill"].Checked
+	cfg.MtpDrafts, errs = collectInt(f.entries["MtpDrafts"], "MTP 草稿数", cfg.MtpDrafts, errs)
+	cfg.NgramDrafts, errs = collectInt(f.entries["NgramDrafts"], "ngram 草稿数", cfg.NgramDrafts, errs)
+	cfg.NgramMinMatch, errs = collectInt(f.entries["NgramMinMatch"], "ngram 最短匹配", cfg.NgramMinMatch, errs)
+	cfg.AdaptiveMtp = f.checks["AdaptiveMtp"].Checked
+	cfg.Vision = f.checks["Vision"].Checked
+	cfg.VisionResidency = f.selects["VisionResidency"].Selected
+	cfg.VisionTokens, errs = collectInt(f.entries["VisionTokens"], "视觉合并上限", cfg.VisionTokens, errs)
+	cfg.ThinkingBudget, errs = collectInt(f.entries["ThinkingBudget"], "思考预算", cfg.ThinkingBudget, errs)
+	cfg.DeviceProfile = f.selects["DeviceProfile"].Selected
+	cfg.DiskPath = f.entries["DiskPath"].Text
+	cfg.DiskMiB, errs = collectInt(f.entries["DiskMiB"], "SSD 配额", cfg.DiskMiB, errs)
+	cfg.NoLrfu = f.checks["NoLrfu"].Checked
+	cfg.LrfuLambda, errs = collectFloat(f.entries["LrfuLambda"], "历史衰减", cfg.LrfuLambda, errs)
+	cfg.LrfuTopFraction, errs = collectFloat(f.entries["LrfuTopFraction"], "命中比例", cfg.LrfuTopFraction, errs)
+	cfg.ScoreAggregation = f.selects["ScoreAggregation"].Selected
 	return cfg, errs
 }
 
@@ -430,6 +400,7 @@ func collectFloat(e *widget.Entry, label string, def float64, errs []string) (fl
 }
 
 // SetValidationErrors 显示校验结果（中文，每行一条；主线程）。
+// config.Validate 直接返回中文文案，此处只做展示。
 func (f *NinferForm) SetValidationErrors(errs []string) {
 	if len(errs) == 0 {
 		f.errLabel.SetText("✓ 配置有效")
@@ -440,22 +411,7 @@ func (f *NinferForm) SetValidationErrors(errs []string) {
 		if i > 0 {
 			b.WriteByte('\n')
 		}
-		fmt.Fprintf(&b, "✗ %s", localizeValidation(e))
+		fmt.Fprintf(&b, "✗ %s", e)
 	}
 	f.errLabel.SetText(b.String())
-}
-
-// localizeValidation 把错误码串映射为中文；未知错误码原样保留。
-func localizeValidation(code string) string {
-	for prefix, zh := range validationZh {
-		if !strings.HasPrefix(code, prefix) {
-			continue
-		}
-		rest := strings.TrimPrefix(code, prefix)
-		if strings.Contains(zh, "%s") {
-			return fmt.Sprintf(zh, rest)
-		}
-		return zh
-	}
-	return code
 }

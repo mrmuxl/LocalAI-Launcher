@@ -70,12 +70,41 @@ type Manager struct {
 	// OnLine 日志行回调（stdout/stderr 每行一次），必须在 Start 前设置。
 	OnLine func(line string)
 
+	envMu    sync.Mutex
+	extraEnv map[string]string // 附加环境变量（如 CUDA_VISIBLE_DEVICES），Start 时合并
+
 	mu      sync.Mutex
 	state   State
 	cmd     *exec.Cmd
 	done    chan struct{} // 进程完全退出（管道读完 + Wait 返回）后关闭
 	code    int           // 进程退出码
 	waitErr error         // cmd.Wait 的错误（被 kill 时为 *exec.ExitError）
+}
+
+// SetEnv 设置传给子进程的附加环境变量（线程安全；Start 前调用）。
+// 空值表示删除该变量（不传给子进程）。
+func (m *Manager) SetEnv(key, value string) {
+	m.envMu.Lock()
+	defer m.envMu.Unlock()
+	if m.extraEnv == nil {
+		m.extraEnv = make(map[string]string)
+	}
+	if value == "" {
+		delete(m.extraEnv, key)
+		return
+	}
+	m.extraEnv[key] = value
+}
+
+// snapshotEnv 返回当前附加环境变量的快照（K=V 列表）。
+func (m *Manager) snapshotEnv() []string {
+	m.envMu.Lock()
+	defer m.envMu.Unlock()
+	out := make([]string, 0, len(m.extraEnv))
+	for k, v := range m.extraEnv {
+		out = append(out, k+"="+v)
+	}
+	return out
 }
 
 // New 创建 Manager；cmdPath 为空时使用 DefaultWorkerPath。
@@ -140,6 +169,9 @@ func (m *Manager) StartPath(path string, args []string) error {
 // start 进程启动主体：path 为可执行文件，args 为完整参数。
 func (m *Manager) start(path string, args []string) error {
 	cmd := exec.Command(path, args...)
+	if extra := m.snapshotEnv(); len(extra) > 0 {
+		cmd.Env = append(os.Environ(), extra...)
+	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

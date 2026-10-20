@@ -459,6 +459,9 @@ func (a *App) doStart(cfg config.Config) {
 	}
 	exe := a.manager.Path()
 	args := argv.BuildArgs(cfg)
+	// GPU 选择经环境变量传递（对齐 start-backend.ps1：CUDA_VISIBLE_DEVICES + 固定 PCI_BUS_ID 排序）。
+	a.manager.SetEnv("CUDA_VISIBLE_DEVICES", cfg.Gpu)
+	a.manager.SetEnv("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
 	a.announceCmdline(exe, args)
 	if err := a.manager.Start(cfg); err != nil {
 		log.Printf("启动 worker 失败: %v", err)

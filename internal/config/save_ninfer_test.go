@@ -6,16 +6,16 @@ import (
 	"testing"
 )
 
-// Test_SaveConfig_when_roundTrip_preservesAll34Fields
+// Test_SaveConfig_when_roundTrip_preservesAll32Fields
 // 写入临时目录 → LoadConfig 读回 → 整结构相等（SaveConfig/LoadConfig JSON 往返）。
-func Test_SaveConfig_when_roundTrip_preservesAll34Fields(t *testing.T) {
+func Test_SaveConfig_when_roundTrip_preservesAll32Fields(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "config.json")
 	cfg := DefaultConfig()
-	cfg.Host = "0.0.0.0"
+	cfg.ListenHost = "0.0.0.0"
 	cfg.Port = 9090
-	cfg.CORSOrigins = "a.com, b.com"
-	cfg.TLS = true
-	cfg.Prefetch = true
+	cfg.KvType = "fp8"
+	cfg.FastPrefill = true
+	cfg.Vision = false
 
 	if err := SaveConfig(cfg, path); err != nil {
 		t.Fatalf("SaveConfig: %v", err)
