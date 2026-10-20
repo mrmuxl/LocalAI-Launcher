@@ -1,4 +1,4 @@
-// form.go 构建 34 字段 / 8 分组的启动器表单，并承载校验、保存、加载交互。
+// form_ninfer.go 构建 32 字段 / 9 分组的 NInfer 启动器表单，并承载校验交互。
 //
 // 字段定义与 config.Config 的 34 个字段一一对应（名称/顺序不可增减）；
 // 中文标签取自 config.go 字段注释（唯一来源）。
@@ -92,7 +92,7 @@ var fieldDefs = []fieldDef{
 // 所有方法必须运行在主线程（Fyne 约束）。
 type NinferForm struct {
 	window   fyne.Window
-	content  fyne.CanvasObject // 8 组表单垂直排列的滚动容器
+	content  fyne.CanvasObject // 9 组表单垂直排列的滚动容器
 	entries  map[string]*widget.Entry
 	checks   map[string]*widget.Check
 	selects  map[string]*widget.Select
@@ -134,7 +134,7 @@ func newFixedWidth(obj fyne.CanvasObject, width float32) fyne.CanvasObject {
 	return container.New(fixedWidthLayout{width: width}, obj)
 }
 
-// NewNinferForm 构建 8 组表单（垂直一排、带分组标题、整体滚动）并返回。
+// NewNinferForm 构建 9 组表单（垂直一排、带分组标题、整体滚动）并返回。
 // 行布局统一：标签列宽取全部标签的最大文本宽度，输入框固定 entryWidth，
 // 保证 34 个输入控件跨组左对齐、长度一致。
 func NewNinferForm(window fyne.Window) *NinferForm {
@@ -181,7 +181,7 @@ func NewNinferForm(window fyne.Window) *NinferForm {
 		return container.NewHBox(newFixedWidth(widget.NewLabel(label), labelWidth), w, layout.NewSpacer())
 	}
 
-	// 8 组散开垂直排列：每组一个加粗标题 + 统一行；「服务」组后插入推理程序行，
+	// 9 组散开垂直排列：每组一个加粗标题 + 统一行；「服务」组后插入推理程序行，
 	// 「模型」组的 ModelPath 行带「打开」按钮。
 	var sections []fyne.CanvasObject
 	seen := make(map[string]bool, 8)

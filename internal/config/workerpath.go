@@ -1,6 +1,6 @@
 // workerpath.go 持久化用户通过文件选择框选定的 worker 可执行文件路径。
 //
-// 与 34 字段的业务配置（config.json）分离：worker 路径是启动器自身设置，
+// 与 32 字段的业务配置（config.json）分离：worker 路径是启动器自身设置，
 // 不参与业务校验与表单，单独存档为 UserConfigDir()/NinferLauncher/worker.json。
 package config
 

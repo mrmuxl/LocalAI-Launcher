@@ -65,7 +65,7 @@ func (p *StatusPanel) StatusRow() fyne.CanvasObject {
 	)
 }
 
-// Buttons 返回启动/停止按钮行（供左栏操作区使用）。
+// Buttons 返回启动/停止按钮行（供右栏操作行使用）。
 func (p *StatusPanel) Buttons() fyne.CanvasObject {
 	return container.NewHBox(p.startBtn, p.stopBtn)
 }
