@@ -16,7 +16,7 @@ make build-launcher
 
 ## 运行
 
-1. 双击运行 `bin/LocalAI-launcher.exe`。窗口标题「LocalAI 启动器」，终端输出版本横幅 `LocalAI-launcher v0.1.0`。
+1. 双击运行 `bin/LocalAI-launcher.exe`。窗口标题「LocalAI 启动器 v<构建版本>」，终端输出版本横幅 `LocalAI-launcher v<构建版本>`；右栏状态区显示版本号与可点击的 GitHub 项目链接（https://github.com/mrmuxl/LocalAI-Launcher）。
 2. 左栏双引擎 tab：**NInfer**（33 字段，对齐 start-ninfer.bat 默认配方）与 **llama.cpp**（46 字段，对齐 Qwen3.8-27B-GSQ_S-MTP.cmd 启动脚本），各自独立表单、独立推理引擎行与配置。每个 tab 的「服务」组下有「推理引擎」行指定该引擎的 worker 可执行文件（文件名任意）：输入路径后回车，或点「打开」弹文件选择窗口；llama.cpp tab 的「模型文件」「视觉模型」「聊天模板文件」行同样有「打开」按钮。文件选择使用 fyne 内置文件弹窗（含磁盘/常用位置侧栏、上下级目录浏览），起始目录自动定位到上次所在目录（记忆持久化到 worker.json，下次打开直接定位）。启动时若已有存档则直接采用，否则静默使用默认路径并在操作反馈中提示，不会自动弹窗。所选路径持久化，下次启动直接使用。
 3. 在当前 tab 的表单中填写配置项，点「保存配置」持久化、「重新加载」重新读取；点「启动」按当前 tab 的引擎拉起 worker，日志面板实时显示输出（保留最近 500 行）；「停止」先发 3 秒宽限等待自行退出，超时后强杀。
 
