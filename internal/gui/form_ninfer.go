@@ -97,8 +97,6 @@ type NinferForm struct {
 	checks   map[string]*widget.Check
 	selects  map[string]*widget.Select
 	errLabel *widget.Label
-	saveBtn  *widget.Button
-	loadBtn  *widget.Button
 
 	workerPathEntry *widget.Entry // 推理程序路径输入框（服务组下方）
 
@@ -207,8 +205,6 @@ func NewNinferForm(window fyne.Window) *NinferForm {
 
 	f.errLabel = widget.NewLabel("✓ 配置有效")
 	f.errLabel.Wrapping = fyne.TextWrapWord
-	f.saveBtn = widget.NewButton("保存配置", nil)
-	f.loadBtn = widget.NewButton("重新加载", nil)
 	return f
 }
 

@@ -1,7 +1,7 @@
 // llamacpp.go llama.cpp 推理引擎的配置结构与持久化。
 //
-// 与 ninfer 的 34 字段 Config（config.go）完全分离：字段集、默认值、
-// argv flag 都不同（见 start-backend.ps1 的 llamacpp 分支）。
+// 与 ninfer 的 32 字段 Config（config_ninfer.go）完全分离：字段集、默认值、
+// argv flag 都不同（见 H:\models\Qwen3.8-27B-GSQ_S-MTP.cmd 启动脚本）。
 // 持久化为推理程序所在目录下的 llama.json（与 config.json 同目录不同名）。
 package config
 
@@ -12,62 +12,130 @@ import (
 	"path/filepath"
 )
 
-// LlamaConfig llama.cpp 引擎的 18 个配置字段（对应 start-backend.ps1 llamacpp 分支）。
+// LlamaConfig llama.cpp 引擎的 46 个配置字段（对应 Qwen3.8-27B-GSQ_S-MTP.cmd）。
 type LlamaConfig struct {
 	// 服务
-	Host string `json:"host"`
-	Port int    `json:"port"`
+	Host     string `json:"host"`     // --host
+	Port     int    `json:"port"`     // --port
+	Threads  int    `json:"threads"`  // -t
+	Parallel int    `json:"parallel"` // --parallel
 
-	// 模型（GGUF 文件路径，-m）
-	ModelPath string `json:"modelPath"`
+	// 模型
+	ModelPath        string `json:"modelPath"`        // -m
+	MmprojPath       string `json:"mmprojPath"`       // --mmproj（空=不传）
+	MmprojOffload    bool   `json:"mmprojOffload"`    // --mmproj-offload
+	ImageMinTokens   int    `json:"imageMinTokens"`   // --image-min-tokens
+	ImageMaxTokens   int    `json:"imageMaxTokens"`   // --image-max-tokens
+	Alias            string `json:"alias"`            // --alias
+	ChatTemplateFile string `json:"chatTemplateFile"` // --chat-template-file（空=不传）
 
-	// 上下文与内存
-	Context int `json:"context"` // -c
-	Budget  int `json:"budget"`  // --kvmem-budget
-	Reserve int `json:"reserve"` // --kvmem-gen-reserve
-	HostMiB int `json:"hostMiB"` // --kvmem-host-mib（0=不传）
+	// 上下文与批处理
+	CtxSize    int `json:"ctxSize"`    // -c
+	NPredict   int `json:"nPredict"`   // -n
+	BatchSize  int `json:"batchSize"`  // -b
+	UbatchSize int `json:"ubatchSize"` // -ub
+	Keep       int `json:"keep"`       // --keep
+
+	// GPU 与加载
+	GpuLayers      int    `json:"gpuLayers"`      // --gpu-layers
+	GpuLayersDraft string `json:"gpuLayersDraft"` // --gpu-layers-draft
+	LoadMode       string `json:"loadMode"`       // --load-mode
+	NoWarmup       bool   `json:"noWarmup"`       // --no-warmup
 
 	// KV 缓存
-	KvType       string `json:"kvType"`       // --kv-dtype
-	SinkTokens   int    `json:"sinkTokens"`   // --kvmem-sink-tokens
-	RecentTokens int    `json:"recentTokens"` // --kvmem-recent-tokens
+	CacheTypeV       string `json:"cacheTypeV"`       // --cache-type-v
+	CacheTypeK       string `json:"cacheTypeK"`       // --cache-type-k
+	CacheTypeVDraft  string `json:"cacheTypeVDraft"`  // --cache-type-v-draft
+	CacheTypeKDraft  string `json:"cacheTypeKDraft"`  // --cache-type-k-draft
+	CacheRam         int    `json:"cacheRam"`         // --cache-ram
+	NoCacheIdleSlots bool   `json:"noCacheIdleSlots"` // --no-cache-idle-slots
+	NoHost           bool   `json:"noHost"`           // --no-host
 
-	// 生成
-	MaxTokens int `json:"maxTokens"` // -n
-	Prefill   int `json:"prefill"`   // -b 与 -ub 同值
+	// 推测解码
+	SpecType      string `json:"specType"`      // --spec-type
+	SpecDraftNMin int    `json:"specDraftNMin"` // --spec-draft-n-min
+	SpecDraftNMax int    `json:"specDraftNMax"` // --spec-draft-n-max
+	KvUnified     bool   `json:"kvUnified"`     // --kv-unified
 
-	// LRFU 历史加权
-	NoLrfu           bool    `json:"noLrfu"`
-	LrfuLambda       float64 `json:"lrfuLambda"`
-	LrfuTopFraction  float64 `json:"lrfuTopFraction"`
-	ScoreAggregation string  `json:"scoreAggregation"`
+	// 注意力与检查点
+	FlashAttn      string `json:"flashAttn"`      // -fa（on/off）
+	CtxCheckpoints int    `json:"ctxCheckpoints"` // --ctx-checkpoints
+	Poll           int    `json:"poll"`           // --poll
 
-	// SSD 分层
-	DiskPath string `json:"diskPath"` // 空=关闭
-	DiskMiB  int    `json:"diskMiB"`
+	// 推理行为
+	Jinja              bool   `json:"jinja"`              // --jinja
+	Reasoning          string `json:"reasoning"`          // --reasoning（on/off）
+	ReasoningPreserve  bool   `json:"reasoningPreserve"`  // --reasoning-preserve
+	ReasoningFormat    string `json:"reasoningFormat"`    // --reasoning-format
+	Fit                string `json:"fit"`                // -fit（on/off）
+	ChatTemplateKwargs string `json:"chatTemplateKwargs"` // --chat-template-kwargs（空=不传）
+
+	// 采样
+	Temp            float64 `json:"temp"`            // --temp
+	TopP            float64 `json:"topP"`            // --top-p
+	TopK            int     `json:"topK"`            // --top-k
+	MinP            float64 `json:"minP"`            // --min-p
+	PresencePenalty float64 `json:"presencePenalty"` // --presence-penalty
+	RepeatPenalty   float64 `json:"repeatPenalty"`   // --repeat-penalty
 }
 
-// DefaultLlamaConfig 返回 llama.cpp 引擎的默认值（start-backend.ps1 llamacpp 分支）。
+// DefaultLlamaConfig 返回 llama.cpp 引擎的默认值（Qwen3.8-27B-GSQ_S-MTP.cmd 配方）。
 func DefaultLlamaConfig() LlamaConfig {
 	return LlamaConfig{
-		Host:             "127.0.0.1",
-		Port:             18200,
-		ModelPath:        "",
-		Context:          262144,
-		Budget:           32768,
-		Reserve:          1024,
-		HostMiB:          16384,
-		KvType:           "q8_0",
-		SinkTokens:       12288,
-		RecentTokens:     1024,
-		MaxTokens:        1024,
-		Prefill:          128,
-		NoLrfu:           false,
-		LrfuLambda:       0.5,
-		LrfuTopFraction:  0.9,
-		ScoreAggregation: "max",
-		DiskPath:         "",
-		DiskMiB:          4096,
+		Host:     "0.0.0.0",
+		Port:     8080,
+		Threads:  4,
+		Parallel: 1,
+
+		ModelPath:        `H:\models\Qwen3.8-GSQ\Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf`,
+		MmprojPath:       `H:\models\Qwen3.8-GSQ\mmproj-Qwen3.8-27B-BF16.gguf`,
+		MmprojOffload:    true,
+		ImageMinTokens:   1024,
+		ImageMaxTokens:   4096,
+		Alias:            "Qwen3.8-27B",
+		ChatTemplateFile: `Qwen-Sharp-Chat-Templates\chat_template.jinja`,
+
+		CtxSize:    81920,
+		NPredict:   16384,
+		BatchSize:  512,
+		UbatchSize: 512,
+		Keep:       -1,
+
+		GpuLayers:      99,
+		GpuLayersDraft: "all",
+		LoadMode:       "mlock",
+		NoWarmup:       true,
+
+		CacheTypeV:       "q4_0",
+		CacheTypeK:       "q4_0",
+		CacheTypeVDraft:  "q4_0",
+		CacheTypeKDraft:  "q4_0",
+		CacheRam:         8192,
+		NoCacheIdleSlots: true,
+		NoHost:           true,
+
+		SpecType:      "draft-mtp",
+		SpecDraftNMin: 1,
+		SpecDraftNMax: 3,
+		KvUnified:     true,
+
+		FlashAttn:      "on",
+		CtxCheckpoints: 4,
+		Poll:           10,
+
+		Jinja:              true,
+		Reasoning:          "on",
+		ReasoningPreserve:  true,
+		ReasoningFormat:    "deepseek",
+		Fit:                "off",
+		ChatTemplateKwargs: `{"preserve-thinking": true,"reasoning_effort": "medium"}`,
+
+		Temp:            1,
+		TopP:            0.95,
+		TopK:            20,
+		MinP:            0.0,
+		PresencePenalty: 0.0,
+		RepeatPenalty:   1.0,
 	}
 }
 
@@ -109,7 +177,6 @@ func SaveLlamaConfig(cfg LlamaConfig, path string) error {
 
 // ValidateLlama 校验 llama.cpp 配置，返回错误文案列表（空=通过）。
 // 含模型文件存在性检查（fs IO），只可在 goroutine 中调用。
-// start-backend.ps1 的 llamacpp 分支不做对齐校验，此处只做基本合法性。
 func ValidateLlama(cfg LlamaConfig) []string {
 	var errs []string
 	if cfg.ModelPath == "" {
@@ -122,29 +189,62 @@ func ValidateLlama(cfg LlamaConfig) []string {
 	if cfg.Port < 1 || cfg.Port > 65535 {
 		errs = append(errs, "监听端口必须在 1..65535")
 	}
-	if cfg.Context <= 0 {
+	if cfg.Threads < 0 {
+		errs = append(errs, "线程数（-t）不能为负")
+	}
+	if cfg.Parallel < 1 {
+		errs = append(errs, "并行请求数（--parallel）必须 ≥ 1")
+	}
+	if cfg.CtxSize <= 0 {
 		errs = append(errs, "上下文长度（-c）必须大于 0")
 	}
-	if cfg.Budget <= 0 {
-		errs = append(errs, "KV 预算（--kvmem-budget）必须大于 0")
+	if cfg.NPredict <= 0 {
+		errs = append(errs, "最大回复长度（-n）必须大于 0")
 	}
-	if cfg.Reserve <= 0 {
-		errs = append(errs, "生成保留（--kvmem-gen-reserve）必须大于 0")
+	if cfg.BatchSize <= 0 || cfg.UbatchSize <= 0 {
+		errs = append(errs, "批大小（-b/-ub）必须大于 0")
 	}
-	if cfg.Prefill <= 0 {
-		errs = append(errs, "prefill 批大小（-b）必须大于 0")
+	if cfg.UbatchSize > cfg.BatchSize {
+		errs = append(errs, "ubatch（-ub）不得超过 batch（-b）")
 	}
-	if cfg.KvType == "" {
-		errs = append(errs, "KV 类型（--kv-dtype）不能为空")
+	if cfg.GpuLayers < 0 {
+		errs = append(errs, "GPU 层数（--gpu-layers）不能为负")
 	}
-	if cfg.ScoreAggregation != "mean" && cfg.ScoreAggregation != "max" {
-		errs = append(errs, "GQA 聚合必须是 mean 或 max")
+	if cfg.CacheRam < 0 {
+		errs = append(errs, "缓存内存（--cache-ram）不能为负")
 	}
-	if cfg.LrfuLambda < 0 || cfg.LrfuLambda > 1 {
-		errs = append(errs, "LRFU lambda 必须在 [0,1]")
+	if cfg.SpecDraftNMin < 0 || cfg.SpecDraftNMax < 0 {
+		errs = append(errs, "草稿长度（--spec-draft-n-min/max）不能为负")
 	}
-	if cfg.LrfuTopFraction <= 0 || cfg.LrfuTopFraction > 1 {
-		errs = append(errs, "LRFU top-frac 必须在 (0,1]")
+	if cfg.SpecDraftNMax > 0 && cfg.SpecDraftNMin > cfg.SpecDraftNMax {
+		errs = append(errs, "草稿最小长度不得超过最大长度")
+	}
+	if cfg.CtxCheckpoints < 0 {
+		errs = append(errs, "上下文检查点数（--ctx-checkpoints）不能为负")
+	}
+	if cfg.Poll < 0 {
+		errs = append(errs, "轮询间隔（--poll）不能为负")
+	}
+	if cfg.ImageMinTokens < 0 || cfg.ImageMaxTokens < 0 {
+		errs = append(errs, "视觉 token 数（--image-min/max-tokens）不能为负")
+	}
+	if cfg.ImageMaxTokens > 0 && cfg.ImageMinTokens > cfg.ImageMaxTokens {
+		errs = append(errs, "视觉最小 token 数不得超过最大 token 数")
+	}
+	if cfg.Temp < 0 {
+		errs = append(errs, "温度（--temp）不能为负")
+	}
+	if cfg.TopP <= 0 || cfg.TopP > 1 {
+		errs = append(errs, "top-p 必须在 (0,1]")
+	}
+	if cfg.TopK < 0 {
+		errs = append(errs, "top-k 不能为负")
+	}
+	if cfg.MinP < 0 || cfg.MinP > 1 {
+		errs = append(errs, "min-p 必须在 [0,1]")
+	}
+	if cfg.RepeatPenalty < 0 {
+		errs = append(errs, "重复惩罚（--repeat-penalty）不能为负")
 	}
 	return errs
 }

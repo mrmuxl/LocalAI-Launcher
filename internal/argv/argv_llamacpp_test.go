@@ -8,7 +8,7 @@ import (
 )
 
 // TestBuildLlamaArgs_fixedSegmentOrder 固定段 flag 名与顺序逐字锁定
-// （对齐 start-backend.ps1 llamacpp 分支）。
+// （对齐 Qwen3.8-27B-GSQ_S-MTP.cmd 启动脚本续行顺序）。
 func TestBuildLlamaArgs_fixedSegmentOrder(t *testing.T) {
 	cfg := config.DefaultLlamaConfig()
 	cfg.ModelPath = `D:\models\qwen.gguf`
@@ -16,49 +16,83 @@ func TestBuildLlamaArgs_fixedSegmentOrder(t *testing.T) {
 	got := BuildLlamaArgs(cfg)
 	want := []string{
 		"-m", `D:\models\qwen.gguf`,
-		"--host", "127.0.0.1",
-		"--port", "18200",
-		"-c", "262144",
-		"-n", "1024",
-		"--kvmem-budget", "32768",
-		"--kvmem-gen-reserve", "1024",
-		"--kv-dtype", "q8_0",
-		"-b", "128",
-		"-ub", "128",
-		"--kvmem-sink-tokens", "12288",
-		"--kvmem-recent-tokens", "1024",
-		"--kvmem-host-mib", "16384",
-		"--kvmem-lrfu",
-		"--kvmem-lrfu-lambda", "0.5",
-		"--kvmem-lrfu-top-frac", "0.9",
-		"--kvmem-score-agg", "max",
+		"--alias", "Qwen3.8-27B",
+		"--host", "0.0.0.0",
+		"--port", "8080",
+		"-t", "4",
+		"-c", "81920",
+		"-n", "16384",
+		"--gpu-layers", "99",
+		"-b", "512",
+		"-ub", "512",
+		"--gpu-layers-draft", "all",
+		"-fa", "on",
+		"--parallel", "1",
+		"--reasoning-format", "deepseek",
+		"-fit", "off",
+		"--keep", "-1",
+		"--load-mode", "mlock",
+		"--reasoning", "on",
+		"--cache-type-v", "q4_0",
+		"--cache-type-k", "q4_0",
+		"--cache-type-v-draft", "q4_0",
+		"--cache-type-k-draft", "q4_0",
+		"--spec-type", "draft-mtp",
+		"--spec-draft-n-min", "1",
+		"--spec-draft-n-max", "3",
+		"--ctx-checkpoints", "4",
+		"--poll", "10",
+		"--cache-ram", "8192",
+		"--temp", "1",
+		"--top-p", "0.95",
+		"--top-k", "20",
+		"--min-p", "0",
+		"--presence-penalty", "0",
+		"--repeat-penalty", "1",
+		"--kv-unified",
+		"--mmproj-offload",
+		"--jinja",
+		"--reasoning-preserve",
+		"--no-cache-idle-slots",
+		"--no-host",
+		"--no-warmup",
+		"--mmproj", `H:\models\Qwen3.8-GSQ\mmproj-Qwen3.8-27B-BF16.gguf`,
+		"--image-min-tokens", "1024",
+		"--image-max-tokens", "4096",
+		"--chat-template-file", `Qwen-Sharp-Chat-Templates\chat_template.jinja`,
+		"--chat-template-kwargs", `{"preserve-thinking": true,"reasoning_effort": "medium"}`,
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("argv mismatch:\ngot:  %q\nwant: %q", got, want)
 	}
 }
 
-// TestBuildLlamaArgs_conditionals 条件段：DiskPath 非空带 disk 段；
-// NoLrfu 关闭 LRFU 段；HostMiB=0 且无 DiskPath 时不传 host-mib。
+// TestBuildLlamaArgs_conditionals 条件段：MmprojPath/ChatTemplateFile/
+// ChatTemplateKwargs 为空时不传对应 flag；布尔开关关闭时不出现。
 func TestBuildLlamaArgs_conditionals(t *testing.T) {
 	cfg := config.DefaultLlamaConfig()
-	cfg.DiskPath = `D:\kv-cache`
-	cfg.DiskMiB = 8192
-	got := BuildLlamaArgs(cfg)
-	for _, want := range []string{"--kvmem-disk-path", `D:\kv-cache`, "--kvmem-disk-mib", "8192"} {
-		if !slices.Contains(got, want) {
-			t.Errorf("disk 段缺少 %q", want)
-		}
-	}
+	cfg.MmprojPath = ""
+	cfg.ChatTemplateFile = ""
+	cfg.ChatTemplateKwargs = ""
+	cfg.KvUnified = false
+	cfg.MmprojOffload = false
+	cfg.Jinja = false
+	cfg.ReasoningPreserve = false
+	cfg.NoCacheIdleSlots = false
+	cfg.NoHost = false
+	cfg.NoWarmup = false
+	cfg.ImageMinTokens = 0
+	cfg.ImageMaxTokens = 0
 
-	cfg2 := config.DefaultLlamaConfig()
-	cfg2.NoLrfu = true
-	cfg2.HostMiB = 0
-	got2 := BuildLlamaArgs(cfg2)
-	if slices.Contains(got2, "--kvmem-lrfu") {
-		t.Error("NoLrfu 时不应出现 --kvmem-lrfu")
-	}
-	if slices.Contains(got2, "--kvmem-host-mib") {
-		t.Error("HostMiB=0 且无 DiskPath 时不应出现 --kvmem-host-mib")
+	got := BuildLlamaArgs(cfg)
+	for _, banned := range []string{
+		"--mmproj", "--image-min-tokens", "--image-max-tokens",
+		"--chat-template-file", "--chat-template-kwargs",
+		"--kv-unified", "--mmproj-offload", "--jinja", "--reasoning-preserve",
+		"--no-cache-idle-slots", "--no-host", "--no-warmup",
+	} {
+		if slices.Contains(got, banned) {
+			t.Errorf("条件关闭时不应出现 %q", banned)
+		}
 	}
 }

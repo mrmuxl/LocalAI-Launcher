@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/widget"
 )
 
 // logMinHeight 日志区最小高度。
@@ -17,7 +18,6 @@ const logMinHeight = 200
 func (a *App) buildLayout(window fyne.Window) {
 	logArea := a.logv.Content() // *container.Scroll，可 SetMinSize
 	logArea.SetMinSize(fyne.NewSize(0, logMinHeight))
-	toolbar := container.NewHBox(a.form.saveBtn, a.form.loadBtn, a.status.Buttons(), layout.NewSpacer(), a.msgLbl)
 
 	// 左栏双引擎 tab：校验行跟随当前选中 tab 显示。
 	tabs := container.NewAppTabs(
@@ -36,12 +36,20 @@ func (a *App) buildLayout(window fyne.Window) {
 	tabs.OnSelected = func(*container.TabItem) { syncErrVisible() }
 	syncErrVisible()
 
+	// 右栏顶部操作行：保存配置/重新加载/启动/停止（onSave/onLoad 已按当前 tab 分流）。
+	actions := container.NewHBox(
+		widget.NewButton("保存配置", a.onSave),
+		widget.NewButton("重新加载", a.onLoad),
+		a.status.Buttons(),
+		layout.NewSpacer(),
+	)
+
 	left := container.NewBorder(nil, nil, nil, nil, tabs)
 	right := container.NewVSplit(
-		container.NewVBox(a.status.StatusRow(), errBox),
+		container.NewVBox(actions, a.status.StatusRow(), errBox),
 		logArea)
 	right.Offset = 0.3 // 状态区占右栏 30%，日志占 70%，分割条可拖动
 	split := container.NewHSplit(left, right)
 	split.Offset = 0.5 // 左右栏各占一半，分割条可拖动调整
-	window.SetContent(container.NewBorder(toolbar, nil, nil, nil, split))
+	window.SetContent(container.NewBorder(a.msgLbl, nil, nil, nil, split))
 }

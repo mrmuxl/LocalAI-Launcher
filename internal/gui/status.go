@@ -37,10 +37,10 @@ type StatusPanel struct {
 // onStart/onStop 绑定到按钮（主线程回调，立即返回）。
 func NewStatusPanel(onStart, onStop func()) *StatusPanel {
 	p := &StatusPanel{
-		stateLabel:   widget.NewLabel("状态：已停止"),
-		pidLabel:     widget.NewLabel("PID：-"),
-		uptimeLabel:  widget.NewLabel("运行时长：-"),
-		lastLogLabel: widget.NewLabel("最新日志：（暂无）"),
+		stateLabel:   widget.NewLabel("已停止"),
+		pidLabel:     widget.NewLabel("-"),
+		uptimeLabel:  widget.NewLabel("-"),
+		lastLogLabel: widget.NewLabel("（暂无）"),
 	}
 	p.startBtn = widget.NewButton("启动", onStart)
 	p.stopBtn = widget.NewButton("停止", onStop)
@@ -49,14 +49,19 @@ func NewStatusPanel(onStart, onStop func()) *StatusPanel {
 	return p
 }
 
-// StatusRow 返回状态标签行（状态/PID/运行时长/最新日志，供右栏状态区使用）。
+// statusLabelWidth 状态表格标签列统一宽度（状态/PID/运行时长/最新日志对齐）。
+const statusLabelWidth = 76
+
+// StatusRow 返回状态表格（4 行两列：固定宽标签列 + 值列，供右栏状态区使用）。
 func (p *StatusPanel) StatusRow() fyne.CanvasObject {
-	return container.NewHBox(
-		p.stateLabel,
-		p.pidLabel,
-		p.uptimeLabel,
-		p.lastLogLabel,
-		layout.NewSpacer(),
+	row := func(l, v *widget.Label) fyne.CanvasObject {
+		return container.NewHBox(newFixedWidth(l, statusLabelWidth), v, layout.NewSpacer())
+	}
+	return container.NewVBox(
+		row(widget.NewLabel("状态"), p.stateLabel),
+		row(widget.NewLabel("PID"), p.pidLabel),
+		row(widget.NewLabel("运行时长"), p.uptimeLabel),
+		row(widget.NewLabel("最新日志"), p.lastLogLabel),
 	)
 }
 
@@ -68,21 +73,21 @@ func (p *StatusPanel) Buttons() fyne.CanvasObject {
 // ApplyState 按 D4 状态机刷新文案并切换按钮可用性（主线程）。
 // startedAt 为零值时显示运行时长「-」。
 func (p *StatusPanel) ApplyState(st process.State, pid int, startedAt time.Time, lastLog string) {
-	p.stateLabel.SetText("状态：" + stateZh[st])
+	p.stateLabel.SetText(stateZh[st])
 	if pid > 0 {
-		p.pidLabel.SetText(fmt.Sprintf("PID：%d", pid))
+		p.pidLabel.SetText(fmt.Sprintf("%d", pid))
 	} else {
-		p.pidLabel.SetText("PID：-")
+		p.pidLabel.SetText("-")
 	}
 	if st == process.Running && !startedAt.IsZero() {
-		p.uptimeLabel.SetText("运行时长：" + time.Since(startedAt).Truncate(time.Second).String())
+		p.uptimeLabel.SetText(time.Since(startedAt).Truncate(time.Second).String())
 	} else {
-		p.uptimeLabel.SetText("运行时长：-")
+		p.uptimeLabel.SetText("-")
 	}
 	if lastLog != "" {
-		p.lastLogLabel.SetText("最新日志：" + clipRunes(lastLog, 48))
+		p.lastLogLabel.SetText(clipRunes(lastLog, 48))
 	} else {
-		p.lastLogLabel.SetText("最新日志：（暂无）")
+		p.lastLogLabel.SetText("（暂无）")
 	}
 
 	switch st {

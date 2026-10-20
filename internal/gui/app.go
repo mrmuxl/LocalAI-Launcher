@@ -89,8 +89,6 @@ func NewApp() *App {
 
 	// 按钮回调接线（表单不预接 OnTapped，由 App 统一注入）。
 	a.form.onChange = a.onFormChange
-	a.form.saveBtn.OnTapped = a.onSave
-	a.form.loadBtn.OnTapped = a.onLoad
 	a.form.onOpenWorker = a.pickWorker
 	a.form.onWorkerPathSet = a.onWorkerPathSubmitted
 	a.form.onOpenModel = a.pickModel

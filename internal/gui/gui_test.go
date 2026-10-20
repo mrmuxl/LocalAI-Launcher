@@ -72,16 +72,20 @@ func TestFormFieldCount(t *testing.T) {
 	}
 }
 
-// TestLlamaFormFieldCount llama 表单控件数必须为 18（7 组）。
+// TestLlamaFormFieldCount llama 表单控件数必须为 46（9 组）。
 func TestLlamaFormFieldCount(t *testing.T) {
 	w := newTestWindow(t)
 	f := NewLlamaForm(w)
 
-	if got := f.CountFields(); got != 18 {
-		t.Fatalf("llama 字段定义数 = %d，期望 18", got)
+	if got := f.CountFields(); got != 46 {
+		t.Fatalf("llama 字段定义数 = %d，期望 46", got)
 	}
-	if got := len(f.entries) + len(f.checks); got != 18 {
-		t.Fatalf("llama 实际控件数 = %d（Entry %d + Check %d），期望 18", got, len(f.entries), len(f.checks))
+	if got := len(f.entries) + len(f.checks) + len(f.selects); got != 46 {
+		t.Fatalf("llama 实际控件数 = %d（Entry %d + Check %d + Select %d），期望 46",
+			got, len(f.entries), len(f.checks), len(f.selects))
+	}
+	if got := len(f.GroupNames()); got != 9 {
+		t.Fatalf("llama 分组数 = %d，期望 9", got)
 	}
 }
 
