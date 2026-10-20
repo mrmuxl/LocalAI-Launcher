@@ -83,24 +83,14 @@ func Test_LoadConfig_when_pathIsDirectory_returnsError(t *testing.T) {
 	}
 }
 
-// Test_LoadConfigPath_when_resolved_returnsDefaultLocation
-// 默认路径 = UserConfigDir()/NinferLauncher/config.json：非空、绝对、命名正确。
-func Test_LoadConfigPath_when_resolved_returnsDefaultLocation(t *testing.T) {
-	path, err := LoadConfigPath()
-
-	if err != nil {
-		t.Fatalf("LoadConfigPath() error: %v", err)
+// Test_ConfigPathFor_when_workerPathGiven_returnsSameDir
+// 配置文件跟随推理程序：绝对路径 → 同目录 config.json；相对路径 → 工作目录 config.json。
+func Test_ConfigPathFor_when_workerPathGiven_returnsSameDir(t *testing.T) {
+	abs := filepath.Join("D:", "ninfer", "ninfer.exe")
+	if got := ConfigPathFor(abs); got != filepath.Join("D:", "ninfer", "config.json") {
+		t.Errorf("ConfigPathFor(abs) = %q, want same dir config.json", got)
 	}
-	if path == "" {
-		t.Fatal("LoadConfigPath() returned empty path")
-	}
-	if !filepath.IsAbs(path) {
-		t.Errorf("path %q not absolute", path)
-	}
-	if filepath.Base(path) != "config.json" {
-		t.Errorf("base = %q, want config.json", filepath.Base(path))
-	}
-	if filepath.Base(filepath.Dir(path)) != "NinferLauncher" {
-		t.Errorf("parent dir = %q, want NinferLauncher", filepath.Base(filepath.Dir(path)))
+	if got := ConfigPathFor("ninfer.exe"); got != "config.json" {
+		t.Errorf("ConfigPathFor(relative) = %q, want config.json in work dir", got)
 	}
 }

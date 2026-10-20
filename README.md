@@ -22,7 +22,7 @@ make build-launcher
 
 ## 配置路径
 
-`%AppData%\NinferLauncher\config.json`（即 `os.UserConfigDir()/NinferLauncher/config.json`）。
+推理程序（`ninfer.exe`）所在目录下的 `config.json`——配置跟随推理程序（便携式，换程序目录即换一套配置）。推理程序为默认相对路径时，配置随启动器运行时工作目录解析。
 
 - 文件不存在：加载使用内置默认值，不报错；
 - JSON 损坏：加载报错，不覆盖原文件；
@@ -30,7 +30,7 @@ make build-launcher
 
 ## worker 路径
 
-`%AppData%\NinferLauncher\worker.json`：在表单「推理程序」行输入路径回车或点「打开」选择 `ninfer.exe` 时写入，仅保存可执行文件绝对路径；下次启动直接采用。存档指向的文件被删除时，启动会静默回退默认路径并提示，可重新指定。
+`%AppData%\NinferLauncher\worker.json`：在表单「推理程序」行输入路径回车或点「打开」选择 `ninfer.exe` 时写入，仅保存可执行文件绝对路径；下次启动直接采用。存档指向的文件被删除时，启动会静默回退默认路径并提示，可重新指定。该文件是引导存档（记录推理程序在哪），固定放在用户配置目录，不随推理程序移动。
 
 ## 与 server 的关系
 

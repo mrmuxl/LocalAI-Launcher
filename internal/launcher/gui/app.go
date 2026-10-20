@@ -95,9 +95,8 @@ func NewApp() *App {
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.tickDone = make(chan struct{})
 
-	// 初始化后台派发：worker 路径选择 + 初始配置加载 + 1s 状态刷新。
+	// 初始化后台派发：worker 路径确定后加载配置（配置文件放推理程序目录）+ 1s 状态刷新。
 	go a.initWorkerPath()
-	go a.doLoadInitial()
 	go a.tick()
 
 	return a
@@ -106,6 +105,8 @@ func NewApp() *App {
 // initWorkerPath 决定 worker 可执行文件路径（后台 goroutine，NewApp 时派发）：
 // 存档有效 → 直接采用并提示；否则静默回退默认路径并提示，不自动弹窗，
 // 由用户点「打开」按钮时再经 pickWorker 弹出选择框。
+// 路径确定后（无论哪条分支）调用 doLoadInitial：配置文件放推理程序目录，
+// 必须先定路径才能定位配置。
 func (a *App) initWorkerPath() {
 	saved, err := config.LoadWorkerPath()
 	switch {
@@ -117,13 +118,15 @@ func (a *App) initWorkerPath() {
 			a.form.SetWorkerPath(saved)
 			a.msgLbl.SetText("✓ 使用已保存的 ninfer.exe：" + saved)
 		})
-		return
-	case saved != "":
-		log.Printf("已保存的 worker 路径不存在: %s，回退默认路径", saved)
+	default:
+		if saved != "" {
+			log.Printf("已保存的 worker 路径不存在: %s，回退默认路径", saved)
+		}
+		fyne.Do(func() {
+			a.msgLbl.SetText("未指定推理程序，使用默认路径：" + a.manager.Path() + "；点「打开」选择 ninfer.exe")
+		})
 	}
-	fyne.Do(func() {
-		a.msgLbl.SetText("未指定推理程序，使用默认路径：" + a.manager.Path() + "；点「打开」选择 ninfer.exe")
-	})
+	a.doLoadInitial()
 }
 
 // fileExists 路径存在且不是目录。
@@ -203,15 +206,10 @@ func (a *App) Run() {
 	<-a.tickDone
 }
 
-// doLoadInitial 首次载入配置（goroutine，NewApp 时派发）。
-// 失败回退 DefaultConfig，错误经 log.Printf 留痕。
+// doLoadInitial 首次载入配置（initWorkerPath 末尾调用，worker 路径已确定）。
+// 配置文件放推理程序所在目录；失败回退 DefaultConfig，错误经 log.Printf 留痕。
 func (a *App) doLoadInitial() {
-	path, err := config.LoadConfigPath()
-	if err != nil {
-		log.Printf("解析默认配置路径失败: %v，使用默认配置", err)
-		a.applyConfig(config.DefaultConfig(), "未找到配置文件，已载入默认值")
-		return
-	}
+	path := config.ConfigPathFor(a.manager.Path())
 	cfg, err := config.LoadConfig(path)
 	if err != nil {
 		log.Printf("加载配置 %s 失败: %v，使用默认配置", path, err)
@@ -340,24 +338,19 @@ func (a *App) doSave(cfg config.Config, errs []string) {
 		})
 		return
 	}
-	savedPath, err := config.SaveConfigDefault(cfg)
-	if err != nil {
+	path := config.ConfigPathFor(a.manager.Path())
+	if err := config.SaveConfig(cfg, path); err != nil {
 		log.Printf("保存配置失败: %v", err)
 		fyne.Do(func() { a.msgLbl.SetText("保存失败：" + err.Error()) })
 		return
 	}
-	fyne.Do(func() { a.msgLbl.SetText("✓ 配置已保存至 " + savedPath) })
+	fyne.Do(func() { a.msgLbl.SetText("✓ 配置已保存至 " + path) })
 }
 
 // onLoad 加载按钮回调（主线程，Form.loadBtn）：读盘入 goroutine，经 fyne.Do 回填。
 func (a *App) onLoad() {
 	go func() {
-		path, err := config.LoadConfigPath()
-		if err != nil {
-			log.Printf("解析默认配置路径失败: %v", err)
-			fyne.Do(func() { a.msgLbl.SetText("加载失败：无法确定配置文件路径") })
-			return
-		}
+		path := config.ConfigPathFor(a.manager.Path())
 		cfg, err := config.LoadConfig(path)
 		if err != nil {
 			log.Printf("加载配置 %s 失败: %v", path, err)

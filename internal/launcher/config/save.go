@@ -26,15 +26,3 @@ func SaveConfig(cfg Config, path string) error {
 	}
 	return nil
 }
-
-// SaveConfigDefault 将 cfg 写入 LoadConfigPath() 返回的默认路径。
-func SaveConfigDefault(cfg Config) (string, error) {
-	path, err := LoadConfigPath()
-	if err != nil {
-		return "", err
-	}
-	if err := SaveConfig(cfg, path); err != nil {
-		return path, err
-	}
-	return path, nil
-}

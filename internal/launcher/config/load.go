@@ -7,15 +7,11 @@ import (
 	"path/filepath"
 )
 
-// LoadConfigPath 是计划约定的默认配置路径：
-// UserConfigDir()/NinferLauncher/config.json。
-// UserConfigDir 等价于 os.UserConfigDir()（Windows: %AppData）。
-func LoadConfigPath() (string, error) {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		return "", fmt.Errorf("获取用户配置目录失败: %w", err)
-	}
-	return filepath.Join(dir, "NinferLauncher", "config.json"), nil
+// ConfigPathFor 返回推理程序所在目录下的 config.json：
+// 配置持久化文件跟随 ninfer.exe（便携式，换程序目录即换一套配置）。
+// workerPath 为相对路径（如默认值 ninfer.exe）时，随运行时工作目录解析。
+func ConfigPathFor(workerPath string) string {
+	return filepath.Join(filepath.Dir(workerPath), "config.json")
 }
 
 // LoadConfig 从 path 读取 JSON 配置。
