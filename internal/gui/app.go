@@ -30,7 +30,7 @@ import (
 )
 
 // windowTitle 窗口标题（计划 T6）。
-const windowTitle = "NInfer 启动器"
+const windowTitle = "LocalAI 启动器"
 
 // windowSize 初始窗口尺寸；计划要求最小 900x640，此处给足余量。
 var windowSize = fyne.NewSize(1100, 720)
