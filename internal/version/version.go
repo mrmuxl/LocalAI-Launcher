@@ -9,6 +9,9 @@ package version
 // git describe 版本（有 tag 用 tag，无 tag 用短 commit hash）。
 var Version = "0.1.0"
 
+// RepoURL 为项目主页（状态面板展示的可点击链接）。
+const RepoURL = "https://github.com/mrmuxl/LocalAI-Launcher"
+
 // Banner 返回启动时打印的版本横幅。
 func Banner() string {
 	return "LocalAI-launcher v" + Version

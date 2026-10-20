@@ -5,6 +5,7 @@ package gui
 
 import (
 	"fmt"
+	"net/url"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -13,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"llmlauncher/internal/process"
+	"llmlauncher/internal/version"
 )
 
 // stateZh 状态枚举 → 中文文案（状态机 D4）。
@@ -29,6 +31,8 @@ type StatusPanel struct {
 	pidLabel     *widget.Label
 	uptimeLabel  *widget.Label
 	lastLogLabel *widget.Label
+	versionLabel *widget.Label
+	repoLink     *widget.Hyperlink
 	startBtn     *widget.Button
 	stopBtn      *widget.Button
 }
@@ -41,6 +45,8 @@ func NewStatusPanel(onStart, onStop func()) *StatusPanel {
 		pidLabel:     widget.NewLabel("-"),
 		uptimeLabel:  widget.NewLabel("-"),
 		lastLogLabel: widget.NewLabel("（暂无）"),
+		versionLabel: widget.NewLabel("v" + version.Version),
+		repoLink:     widget.NewHyperlink("mrmuxl/LocalAI-Launcher", parseRepoURL()),
 	}
 	p.startBtn = widget.NewButton("启动", onStart)
 	p.stopBtn = widget.NewButton("停止", onStop)
@@ -49,10 +55,20 @@ func NewStatusPanel(onStart, onStop func()) *StatusPanel {
 	return p
 }
 
+// parseRepoURL 解析项目主页 URL（包级常量，失败返回 nil 不致命）。
+func parseRepoURL() *url.URL {
+	u, err := url.Parse(version.RepoURL)
+	if err != nil {
+		return nil
+	}
+	return u
+}
+
 // statusLabelWidth 状态表格标签列统一宽度（状态/PID/运行时长/最新日志对齐）。
 const statusLabelWidth = 76
 
-// StatusRow 返回状态表格（4 行两列：固定宽标签列 + 值列，供右栏状态区使用）。
+// StatusRow 返回状态表格（6 行两列：固定宽标签列 + 值列，供右栏状态区使用）。
+// 版本行显示构建版本，项目行为可点击的 GitHub 链接。
 func (p *StatusPanel) StatusRow() fyne.CanvasObject {
 	row := func(l, v *widget.Label) fyne.CanvasObject {
 		return container.NewHBox(newFixedWidth(l, statusLabelWidth), v, layout.NewSpacer())
@@ -62,6 +78,8 @@ func (p *StatusPanel) StatusRow() fyne.CanvasObject {
 		row(widget.NewLabel("PID"), p.pidLabel),
 		row(widget.NewLabel("运行时长"), p.uptimeLabel),
 		row(widget.NewLabel("最新日志"), p.lastLogLabel),
+		row(widget.NewLabel("版本"), p.versionLabel),
+		container.NewHBox(newFixedWidth(widget.NewLabel("项目"), statusLabelWidth), p.repoLink, layout.NewSpacer()),
 	)
 }
 

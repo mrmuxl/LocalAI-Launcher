@@ -27,6 +27,7 @@ import (
 	"llmlauncher/internal/argv"
 	"llmlauncher/internal/config"
 	"llmlauncher/internal/process"
+	"llmlauncher/internal/version"
 )
 
 // windowTitle 窗口标题（计划 T6）。
@@ -73,7 +74,7 @@ type App struct {
 // 无存档时经文件选择框由用户指定（选择结果持久化，下次启动直接使用）。
 func NewApp() *App {
 	fyneApp := app.New()
-	window := fyneApp.NewWindow(windowTitle)
+	window := fyneApp.NewWindow(windowTitle + " v" + version.Version)
 
 	a := &App{
 		fyneApp: fyneApp,
