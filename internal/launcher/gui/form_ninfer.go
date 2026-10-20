@@ -108,9 +108,9 @@ var validationZh = map[string]string{
 	"V7:path contains NUL byte":            "路径字段包含非法字符（NUL）",
 }
 
-// Form 持有全部表单控件（34 个）与校验状态行。
+// NinferForm 持有全部表单控件（34 个）与校验状态行。
 // 所有方法必须运行在主线程（Fyne 约束）。
-type Form struct {
+type NinferForm struct {
 	window   fyne.Window
 	content  fyne.CanvasObject // 8 组表单垂直排列的滚动容器
 	entries  map[string]*widget.Entry
@@ -154,11 +154,11 @@ func newFixedWidth(obj fyne.CanvasObject, width float32) fyne.CanvasObject {
 	return container.New(fixedWidthLayout{width: width}, obj)
 }
 
-// NewForm 构建 8 组表单（垂直一排、带分组标题、整体滚动）并返回。
+// NewNinferForm 构建 8 组表单（垂直一排、带分组标题、整体滚动）并返回。
 // 行布局统一：标签列宽取全部标签的最大文本宽度，输入框固定 entryWidth，
 // 保证 34 个输入控件跨组左对齐、长度一致。
-func NewForm(window fyne.Window) *Form {
-	f := &Form{
+func NewNinferForm(window fyne.Window) *NinferForm {
+	f := &NinferForm{
 		window:  window,
 		entries: make(map[string]*widget.Entry, len(fieldDefs)),
 		checks:  make(map[string]*widget.Check),
@@ -221,13 +221,13 @@ func NewForm(window fyne.Window) *Form {
 }
 
 // Content 返回表单滚动容器（供窗口布局使用）。
-func (f *Form) Content() fyne.CanvasObject {
+func (f *NinferForm) Content() fyne.CanvasObject {
 	return f.content
 }
 
 // buildWorkerPathRow 构建「推理程序」行：标签 + 固定宽路径输入框 + 打开按钮。
 // 输入框回车提交路径；打开按钮弹文件选择框（回调由 App 注入）。
-func (f *Form) buildWorkerPathRow(labelWidth float32) fyne.CanvasObject {
+func (f *NinferForm) buildWorkerPathRow(labelWidth float32) fyne.CanvasObject {
 	f.workerPathEntry = widget.NewEntry()
 	f.workerPathEntry.SetPlaceHolder("ninfer.exe 路径（输入后回车，或点「打开」选择）")
 	f.workerPathEntry.OnSubmitted = func(text string) {
@@ -249,24 +249,24 @@ func (f *Form) buildWorkerPathRow(labelWidth float32) fyne.CanvasObject {
 }
 
 // SetWorkerPath 回填推理程序路径输入框（主线程；SetText 不触发 OnSubmitted）。
-func (f *Form) SetWorkerPath(p string) {
+func (f *NinferForm) SetWorkerPath(p string) {
 	if f.workerPathEntry != nil {
 		f.workerPathEntry.SetText(p)
 	}
 }
 
 // notifyChange 把字段变化转发给 App（主线程内立即返回）。
-func (f *Form) notifyChange() {
+func (f *NinferForm) notifyChange() {
 	if f.onChange != nil {
 		f.onChange()
 	}
 }
 
 // CountFields 返回字段总数（应为 34）。
-func (f *Form) CountFields() int { return len(fieldDefs) }
+func (f *NinferForm) CountFields() int { return len(fieldDefs) }
 
 // GroupNames 按字段出现顺序返回 8 个分组名。
-func (f *Form) GroupNames() []string {
+func (f *NinferForm) GroupNames() []string {
 	var out []string
 	seen := map[string]bool{}
 	for _, d := range fieldDefs {
@@ -279,7 +279,7 @@ func (f *Form) GroupNames() []string {
 }
 
 // SetFieldsFrom 用配置填充全部控件（主线程）。
-func (f *Form) SetFieldsFrom(cfg config.Config) {
+func (f *NinferForm) SetFieldsFrom(cfg config.Config) {
 	f.entries["Host"].SetText(cfg.Host)
 	f.entries["Port"].SetText(strconv.Itoa(cfg.Port))
 	f.entries["LogLevel"].SetText(cfg.LogLevel)
@@ -318,7 +318,7 @@ func (f *Form) SetFieldsFrom(cfg config.Config) {
 
 // CollectConfig 从控件收集当前配置（主线程轻量读）。
 // 第二个返回值是中文解析错误列表（空串按默认值处理）。
-func (f *Form) CollectConfig() (config.Config, []string) {
+func (f *NinferForm) CollectConfig() (config.Config, []string) {
 	var cfg config.Config
 	var errs []string
 
@@ -384,7 +384,7 @@ func collectFloat(e *widget.Entry, label string, def float64, errs []string) (fl
 }
 
 // SetValidationErrors 显示校验结果（中文，每行一条；主线程）。
-func (f *Form) SetValidationErrors(errs []string) {
+func (f *NinferForm) SetValidationErrors(errs []string) {
 	if len(errs) == 0 {
 		f.errLabel.SetText("✓ 配置有效")
 		return

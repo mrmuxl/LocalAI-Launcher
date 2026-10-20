@@ -123,12 +123,23 @@ func (m *Manager) Pid() int {
 	return 0
 }
 
-// Start 用 argv.BuildArgs(cfg) 构造参数并启动 worker 进程。
+// Start 用 argv.BuildArgs(cfg) 构造参数并启动 worker 进程（ninfer 引擎）。
 // 并发/重复 Start 只生效一次，其余调用返回 ErrAlreadyRunning。
 // 进程完全退出后状态复位为 Stopped，Manager 可再次 Start。
 func (m *Manager) Start(cfg config.Config) error {
-	args := argv.BuildArgs(cfg)
-	cmd := exec.Command(m.cmdPath, args...)
+	return m.start(m.cmdPath, argv.BuildArgs(cfg))
+}
+
+// StartPath 以指定可执行文件路径启动进程（llama.cpp 等其他引擎）。
+// 参数构造由上层负责（如 argv.BuildLlamaArgs），本方法只管进程生命周期。
+// 并发/重复 Start 只生效一次，其余调用返回 ErrAlreadyRunning。
+func (m *Manager) StartPath(path string, args []string) error {
+	return m.start(path, args)
+}
+
+// start 进程启动主体：path 为可执行文件，args 为完整参数。
+func (m *Manager) start(path string, args []string) error {
+	cmd := exec.Command(path, args...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

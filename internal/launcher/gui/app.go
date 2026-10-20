@@ -18,10 +18,12 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
+	"ninferrmanager/internal/launcher/argv"
 	"ninferrmanager/internal/launcher/config"
 	"ninferrmanager/internal/launcher/process"
 )
@@ -35,21 +37,29 @@ var windowSize = fyne.NewSize(1100, 720)
 // statusInterval 状态刷新周期（计划：启动后 1s 周期刷新）。
 const statusInterval = time.Second
 
-// App 组装窗口、表单、状态面板、日志视图与进程 Manager（T6 聚合根）。
-type App struct {
-	fyneApp fyne.App
-	window  fyne.Window
-	form    *Form
-	status  *StatusPanel
-	logv    *LogView
-	msgLbl  *widget.Label // 保存/加载操作反馈行（与校验行分离）
-	manager *process.Manager
-	ring    *process.RingLog
+// defaultLlamaWorkerPath llama.cpp worker 的默认可执行文件路径（相对工作目录）。
+const defaultLlamaWorkerPath = "llama-kvmem-server.exe"
 
-	mu        sync.Mutex
-	startedAt time.Time // 最近一次进入 Running 的时间（doStart 写，tick 读）
-	lastLog   string    // 最近一条 worker 日志行（OnLine 后台线程写）
-	valSeq    int64     // 校验代际，丢弃过期的后台校验结果
+// App 组装窗口、双引擎表单、状态面板、日志视图与进程 Manager（T6 聚合根）。
+type App struct {
+	fyneApp   fyne.App
+	window    fyne.Window
+	form      *NinferForm // NInfer 引擎表单（tab 0）
+	llamaForm *LlamaForm  // llama.cpp 引擎表单（tab 1）
+	tabs      *container.AppTabs
+	status    *StatusPanel
+	logv      *LogView
+	msgLbl    *widget.Label // 保存/加载操作反馈行（与校验行分离）
+	manager   *process.Manager
+	ring      *process.RingLog
+
+	llamaWorkerPath string // llama.cpp worker 可执行文件路径（内存，启动用）
+
+	mu           sync.Mutex
+	startedAt    time.Time // 最近一次进入 Running 的时间（doStart 写，tick 读）
+	lastLog      string    // 最近一条 worker 日志行（OnLine 后台线程写）
+	valSeqNinfer int64     // NInfer 表单校验代际
+	valSeqLlama  int64     // llama 表单校验代际
 
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -71,16 +81,20 @@ func NewApp() *App {
 		msgLbl:  widget.NewLabel(""),
 	}
 
-	a.form = NewForm(window)
+	a.form = NewNinferForm(window)
+	a.llamaForm = NewLlamaForm(window)
 	a.logv = NewLogView(a.ring)
 	a.msgLbl.Wrapping = fyne.TextWrapWord
 
-	// 按钮回调接线（NewForm 不预接 OnTapped，由 App 统一注入）。
+	// 按钮回调接线（表单不预接 OnTapped，由 App 统一注入）。
 	a.form.onChange = a.onFormChange
 	a.form.saveBtn.OnTapped = a.onSave
 	a.form.loadBtn.OnTapped = a.onLoad
 	a.form.onOpenWorker = a.pickWorker
 	a.form.onWorkerPathSet = a.onWorkerPathSubmitted
+	a.llamaForm.onChange = a.onFormChange
+	a.llamaForm.onOpenWorker = a.pickLlamaWorker
+	a.llamaForm.onWorkerPathSet = a.onLlamaWorkerPathSubmitted
 
 	// 状态面板：启动/停止回调注入（主线程回调，立即返回）。
 	a.status = NewStatusPanel(a.onStart, a.onStop)
@@ -102,9 +116,9 @@ func NewApp() *App {
 	return a
 }
 
-// initWorkerPath 决定 worker 可执行文件路径（后台 goroutine，NewApp 时派发）：
-// 存档有效 → 直接采用并提示；否则静默回退默认路径并提示，不自动弹窗，
-// 由用户点「打开」按钮时再经 pickWorker 弹出选择框。
+// initWorkerPath 决定两个引擎的 worker 可执行文件路径（后台 goroutine，NewApp 时派发）：
+// 各读各的存档字段——有效则直接采用并回填；否则静默回退默认路径，不自动弹窗，
+// 由用户点各 tab 的「打开」按钮时再弹选择框。
 // 路径确定后（无论哪条分支）调用 doLoadInitial：配置文件放推理程序目录，
 // 必须先定路径才能定位配置。
 func (a *App) initWorkerPath() {
@@ -126,6 +140,18 @@ func (a *App) initWorkerPath() {
 			a.msgLbl.SetText("未指定推理程序，使用默认路径：" + a.manager.Path() + "；点「打开」选择 ninfer.exe")
 		})
 	}
+
+	lsaved, lerr := config.LoadLlamaWorkerPath()
+	switch {
+	case lerr != nil:
+		log.Printf("读取 llama worker 路径存档失败: %v，回退默认路径", lerr)
+	case lsaved != "" && fileExists(lsaved):
+		a.llamaWorkerPath = lsaved
+		fyne.Do(func() { a.llamaForm.SetWorkerPath(lsaved) })
+	case lsaved != "":
+		log.Printf("已保存的 llama worker 路径不存在: %s，回退默认路径", lsaved)
+	}
+
 	a.doLoadInitial()
 }
 
@@ -135,10 +161,31 @@ func fileExists(p string) bool {
 	return err == nil && !st.IsDir()
 }
 
-// pickWorker 弹出文件选择框（必须主线程调用：按钮回调或 initWorkerPath 经 fyne.Do），
-// 仅过滤 .exe。用户确认后进入后台 goroutine 校验、持久化并注入 Manager。
-func (a *App) pickWorker() {
-	d := dialog.NewFileOpen(a.onWorkerPicked, a.window)
+// pickWorker 弹出 ninfer worker 文件选择框（主线程，按钮回调）。
+func (a *App) pickWorker() { a.pickWorkerDialog(a.applyWorkerChoice) }
+
+// pickLlamaWorker 弹出 llama.cpp worker 文件选择框（主线程，按钮回调）。
+func (a *App) pickLlamaWorker() { a.pickWorkerDialog(a.applyLlamaWorkerChoice) }
+
+// pickWorkerDialog 弹出文件选择框（必须主线程调用），仅过滤 .exe，
+// 用户确认后进入后台 goroutine 执行 apply（校验、持久化并注入）。
+func (a *App) pickWorkerDialog(apply func(path string)) {
+	d := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+		// dialog 回调运行在主线程：立即关闭 reader，IO 派发后台。
+		if err != nil {
+			log.Printf("文件选择失败: %v", err)
+			return
+		}
+		if reader == nil {
+			a.msgLbl.SetText("未选择文件，保持当前路径")
+			return
+		}
+		path := reader.URI().Path()
+		if closeErr := reader.Close(); closeErr != nil {
+			log.Printf("关闭文件选择结果失败: %v", closeErr)
+		}
+		go apply(path)
+	}, a.window)
 	d.SetFilter(storage.NewExtensionFileFilter([]string{".exe"}))
 	// 打开时定位到当前生效路径的目录，减少再次翻找。
 	if p := a.manager.Path(); p != "" && p != process.DefaultWorkerPath {
@@ -147,24 +194,6 @@ func (a *App) pickWorker() {
 		}
 	}
 	d.Show()
-}
-
-// onWorkerPicked 文件选择回调（主线程，来自 dialog）：立即关闭 reader 后
-// 将校验与持久化派发到后台 goroutine，避免回调内做文件 IO。
-func (a *App) onWorkerPicked(reader fyne.URIReadCloser, err error) {
-	if err != nil {
-		log.Printf("文件选择失败: %v", err)
-		return
-	}
-	if reader == nil {
-		a.msgLbl.SetText("未选择 ninfer.exe，当前使用默认路径：" + a.manager.Path())
-		return
-	}
-	path := reader.URI().Path()
-	if closeErr := reader.Close(); closeErr != nil {
-		log.Printf("关闭文件选择结果失败: %v", closeErr)
-	}
-	go a.applyWorkerChoice(path)
 }
 
 // applyWorkerChoice 校验、持久化并注入用户选择的 worker 路径（后台 goroutine，
@@ -191,10 +220,43 @@ func (a *App) applyWorkerChoice(path string) {
 	})
 }
 
-// onWorkerPathSubmitted 推理程序输入框回车回调（主线程，来自 Form）：
+// onWorkerPathSubmitted 推理程序输入框回车回调（主线程，来自 NinferForm）：
 // 立即返回，校验/持久化/注入派发到后台 goroutine。
 func (a *App) onWorkerPathSubmitted(path string) {
 	go a.applyWorkerChoice(path)
+}
+
+// onLlamaWorkerPathSubmitted llama 推理程序输入框回车回调（主线程，来自 LlamaForm）。
+func (a *App) onLlamaWorkerPathSubmitted(path string) {
+	go a.applyLlamaWorkerChoice(path)
+}
+
+// applyLlamaWorkerChoice 校验、持久化并注入用户选择的 llama worker 路径
+// （后台 goroutine）。持久化失败仍注入内存路径，仅日志留痕。
+func (a *App) applyLlamaWorkerChoice(path string) {
+	if !fileExists(path) {
+		log.Printf("选择的 llama worker 路径不存在: %s", path)
+		fyne.Do(func() { a.msgLbl.SetText("✗ 所选文件不存在，请重新选择") })
+		return
+	}
+	if savedPath, err := config.SaveLlamaWorkerPath(path); err != nil {
+		log.Printf("保存 llama worker 路径失败: %v", err)
+	} else {
+		log.Printf("llama worker 路径已保存: %s", savedPath)
+	}
+	a.llamaWorkerPath = path
+	fyne.Do(func() {
+		a.llamaForm.SetWorkerPath(path)
+		a.msgLbl.SetText("✓ llama worker 路径已保存，下次启动直接使用：" + path)
+	})
+}
+
+// llamaWorkerPathOrDef 返回当前 llama worker 路径（空则默认相对路径）。
+func (a *App) llamaWorkerPathOrDef() string {
+	if a.llamaWorkerPath != "" {
+		return a.llamaWorkerPath
+	}
+	return defaultLlamaWorkerPath
 }
 
 // Run 启动 Fyne 事件循环（必须在主 goroutine 调用，阻塞直至应用退出）。
@@ -206,17 +268,26 @@ func (a *App) Run() {
 	<-a.tickDone
 }
 
-// doLoadInitial 首次载入配置（initWorkerPath 末尾调用，worker 路径已确定）。
-// 配置文件放推理程序所在目录；失败回退 DefaultConfig，错误经 log.Printf 留痕。
+// doLoadInitial 首次载入两个引擎的配置（initWorkerPath 末尾调用，路径已确定）。
+// 各引擎配置放各自推理程序所在目录；失败回退默认值，错误经 log.Printf 留痕。
 func (a *App) doLoadInitial() {
-	path := config.ConfigPathFor(a.manager.Path())
+	path := config.ConfigPathFor(a.manager.Path(), "config.json")
 	cfg, err := config.LoadConfig(path)
 	if err != nil {
 		log.Printf("加载配置 %s 失败: %v，使用默认配置", path, err)
 		a.applyConfig(config.DefaultConfig(), "未找到配置文件，已载入默认值")
+	} else {
+		a.applyConfig(cfg, "✓ 配置已加载")
+	}
+
+	lpath := config.ConfigPathFor(a.llamaWorkerPathOrDef(), "llama.json")
+	lcfg, lerr := config.LoadLlamaConfig(lpath)
+	if lerr != nil {
+		log.Printf("加载 llama 配置 %s 失败: %v，使用默认配置", lpath, lerr)
+		a.applyLlamaConfig(config.DefaultLlamaConfig(), "llama 配置未找到，已载入默认值")
 		return
 	}
-	a.applyConfig(cfg, "✓ 配置已加载")
+	a.applyLlamaConfig(lcfg, "✓ llama 配置已加载")
 }
 
 // applyConfig 规范化并回填表单 + 校验 + 反馈文案（goroutine 内调用）。
@@ -227,6 +298,17 @@ func (a *App) applyConfig(cfg config.Config, msg string) {
 	fyne.Do(func() {
 		a.form.SetFieldsFrom(cfg)
 		a.form.SetValidationErrors(errs)
+		a.msgLbl.SetText(msg)
+	})
+}
+
+// applyLlamaConfig 回填 llama 表单 + 校验 + 反馈文案（goroutine 内调用）。
+// ValidateLlama 含模型文件存在性检查（fs IO），只可在 goroutine 中执行。
+func (a *App) applyLlamaConfig(cfg config.LlamaConfig, msg string) {
+	errs := config.ValidateLlama(cfg)
+	fyne.Do(func() {
+		a.llamaForm.SetFieldsFrom(cfg)
+		a.llamaForm.SetValidationErrors(errs)
 		a.msgLbl.SetText(msg)
 	})
 }
@@ -255,27 +337,55 @@ func (a *App) tick() {
 	}
 }
 
-// onFormChange 字段变化回调（主线程，来自 Form.onChange）：主线程收集表单值，
-// 后台校验后立即返回（避免 goroutine 内 fyne.Do 收集与写回之间的竞态）。
+// onFormChange 字段变化回调（主线程，来自两个表单的 onChange）：按当前选中
+// tab 收集对应引擎的表单值，后台校验后立即返回（避免 goroutine 内
+// fyne.Do 收集与写回之间的竞态）。
 func (a *App) onFormChange() {
-	seq := atomic.AddInt64(&a.valSeq, 1)
+	if a.tabs != nil && a.tabs.SelectedIndex() == 1 {
+		seq := atomic.AddInt64(&a.valSeqLlama, 1)
+		cfg, _ := a.llamaForm.CollectConfig() // 主线程读控件合法
+		go a.doValidateLlama(seq, cfg)
+		return
+	}
+	seq := atomic.AddInt64(&a.valSeqNinfer, 1)
 	cfg, _ := a.form.CollectConfig() // 主线程读控件合法；解析错误由 Validate 覆盖
-	go a.doValidate(seq, cfg)
+	go a.doValidateNinfer(seq, cfg)
 }
 
-// doValidate 后台校验配置（goroutine）；代际过期则丢弃结果。
-func (a *App) doValidate(seq int64, cfg config.Config) {
+// doValidateNinfer 后台校验 ninfer 配置（goroutine）；代际过期则丢弃结果。
+func (a *App) doValidateNinfer(seq int64, cfg config.Config) {
 	cfg = config.Normalize(cfg)
 	errs := config.Validate(cfg)
-	if atomic.LoadInt64(&a.valSeq) != seq {
+	if atomic.LoadInt64(&a.valSeqNinfer) != seq {
 		return
 	}
 	fyne.Do(func() { a.form.SetValidationErrors(errs) })
 }
 
-// onStart 启动按钮回调（主线程）：先校验再禁用按钮，Start 入 goroutine。
+// doValidateLlama 后台校验 llama 配置（goroutine）；代际过期则丢弃结果。
+func (a *App) doValidateLlama(seq int64, cfg config.LlamaConfig) {
+	errs := config.ValidateLlama(cfg)
+	if atomic.LoadInt64(&a.valSeqLlama) != seq {
+		return
+	}
+	fyne.Do(func() { a.llamaForm.SetValidationErrors(errs) })
+}
+
+// onStart 启动按钮回调（主线程）：按当前选中 tab 选择引擎，
+// 先校验再禁用按钮，Start 入 goroutine。
 func (a *App) onStart() {
 	if a.manager.State() != process.Stopped {
+		return
+	}
+	if a.tabs != nil && a.tabs.SelectedIndex() == 1 {
+		cfg, errs := a.llamaForm.CollectConfig()
+		if len(errs) > 0 {
+			a.llamaForm.SetValidationErrors(errs)
+			log.Printf("拒绝启动：llama 配置解析未通过（%d 项）", len(errs))
+			return
+		}
+		a.status.startBtn.Disable()
+		go a.doStartLlama(cfg)
 		return
 	}
 	cfg, errs := a.form.CollectConfig()
@@ -286,6 +396,27 @@ func (a *App) onStart() {
 	}
 	a.status.startBtn.Disable()
 	go a.doStart(cfg)
+}
+
+// doStartLlama 后台启动 llama worker（goroutine）：全量校验 → StartPath。
+func (a *App) doStartLlama(cfg config.LlamaConfig) {
+	if errs := config.ValidateLlama(cfg); len(errs) > 0 {
+		log.Printf("启动前校验失败: %v", errs)
+		fyne.Do(func() {
+			a.llamaForm.SetValidationErrors(errs)
+			a.status.startBtn.Enable()
+		})
+		return
+	}
+	if err := a.manager.StartPath(a.llamaWorkerPathOrDef(), argv.BuildLlamaArgs(cfg)); err != nil {
+		log.Printf("启动 worker 失败: %v", err)
+		fyne.Do(func() { a.status.startBtn.Enable() })
+		return
+	}
+	a.mu.Lock()
+	a.startedAt = time.Now()
+	a.mu.Unlock()
+	log.Printf("worker 已启动 (PID=%d)", a.manager.Pid())
 }
 
 // doStart 后台启动 worker（goroutine）：规范化 → 全量校验 → Start。
@@ -318,10 +449,37 @@ func (a *App) onStop() {
 	go a.manager.Stop()
 }
 
-// onSave 保存按钮回调（主线程，Form.saveBtn）：主线程收集配置，入 goroutine 写盘。
+// onSave 保存按钮回调（主线程）：按当前选中 tab 收集配置，入 goroutine 写盘。
 func (a *App) onSave() {
+	if a.tabs != nil && a.tabs.SelectedIndex() == 1 {
+		cfg, errs := a.llamaForm.CollectConfig()
+		go a.doSaveLlama(cfg, errs)
+		return
+	}
 	cfg, errs := a.form.CollectConfig()
 	go a.doSave(cfg, errs)
+}
+
+// doSaveLlama 后台写 llama 配置（goroutine）：先校验，失败则回显。
+func (a *App) doSaveLlama(cfg config.LlamaConfig, errs []string) {
+	if len(errs) == 0 {
+		errs = config.ValidateLlama(cfg)
+	}
+	if len(errs) > 0 {
+		log.Printf("保存 llama 配置失败（校验未通过）: %v", errs)
+		fyne.Do(func() {
+			a.llamaForm.SetValidationErrors(errs)
+			a.msgLbl.SetText("保存失败：请先修正校验错误")
+		})
+		return
+	}
+	path := config.ConfigPathFor(a.llamaWorkerPathOrDef(), "llama.json")
+	if err := config.SaveLlamaConfig(cfg, path); err != nil {
+		log.Printf("保存 llama 配置失败: %v", err)
+		fyne.Do(func() { a.msgLbl.SetText("保存失败：" + err.Error()) })
+		return
+	}
+	fyne.Do(func() { a.msgLbl.SetText("✓ llama 配置已保存至 " + path) })
 }
 
 // doSave 后台写配置（goroutine）：先校验（fs），失败则回显。
@@ -338,7 +496,7 @@ func (a *App) doSave(cfg config.Config, errs []string) {
 		})
 		return
 	}
-	path := config.ConfigPathFor(a.manager.Path())
+	path := config.ConfigPathFor(a.manager.Path(), "config.json")
 	if err := config.SaveConfig(cfg, path); err != nil {
 		log.Printf("保存配置失败: %v", err)
 		fyne.Do(func() { a.msgLbl.SetText("保存失败：" + err.Error()) })
@@ -347,10 +505,24 @@ func (a *App) doSave(cfg config.Config, errs []string) {
 	fyne.Do(func() { a.msgLbl.SetText("✓ 配置已保存至 " + path) })
 }
 
-// onLoad 加载按钮回调（主线程，Form.loadBtn）：读盘入 goroutine，经 fyne.Do 回填。
+// onLoad 加载按钮回调（主线程）：按当前选中 tab 读对应引擎配置，
+// 读盘入 goroutine，经 fyne.Do 回填。
 func (a *App) onLoad() {
+	if a.tabs != nil && a.tabs.SelectedIndex() == 1 {
+		go func() {
+			path := config.ConfigPathFor(a.llamaWorkerPathOrDef(), "llama.json")
+			cfg, err := config.LoadLlamaConfig(path)
+			if err != nil {
+				log.Printf("加载 llama 配置 %s 失败: %v", path, err)
+				fyne.Do(func() { a.msgLbl.SetText("加载失败：llama 配置文件不存在或已损坏，请检查") })
+				return
+			}
+			a.applyLlamaConfig(cfg, "✓ llama 配置已加载")
+		}()
+		return
+	}
 	go func() {
-		path := config.ConfigPathFor(a.manager.Path())
+		path := config.ConfigPathFor(a.manager.Path(), "config.json")
 		cfg, err := config.LoadConfig(path)
 		if err != nil {
 			log.Printf("加载配置 %s 失败: %v", path, err)

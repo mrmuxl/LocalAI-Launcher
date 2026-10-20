@@ -1,6 +1,7 @@
 // layout.go 组装窗口布局：顶部（保存/重新加载/启动/停止操作行）/ 两栏主体——
-// 左栏：8 组参数表单（垂直一排、整体滚动，「服务」组下含推理程序行）；
-// 右栏：上 30% 状态区（状态行 + 校验行）、下 70% 日志区（VSplit 可拖动）。
+// 左栏：引擎切换 AppTabs（NInfer / llama.cpp，各自表单整体滚动，
+// 「服务」组下含推理程序行）；右栏：上 30% 状态区（状态行 + 当前引擎校验行）、
+// 下 70% 日志区（VSplit 可拖动）。
 package gui
 
 import (
@@ -17,9 +18,27 @@ func (a *App) buildLayout(window fyne.Window) {
 	logArea := a.logv.Content() // *container.Scroll，可 SetMinSize
 	logArea.SetMinSize(fyne.NewSize(0, logMinHeight))
 	toolbar := container.NewHBox(a.form.saveBtn, a.form.loadBtn, a.status.Buttons(), layout.NewSpacer(), a.msgLbl)
-	left := container.NewBorder(nil, nil, nil, nil, a.form.Content())
+
+	// 左栏双引擎 tab：校验行跟随当前选中 tab 显示。
+	tabs := container.NewAppTabs(
+		container.NewTabItem("NInfer", a.form.Content()),
+		container.NewTabItem("llama.cpp", a.llamaForm.Content()),
+	)
+	a.tabs = tabs
+	errBox := container.NewVBox(a.form.errLabel, a.llamaForm.errLabel)
+	syncErrVisible := func() {
+		a.form.errLabel.Hidden = tabs.SelectedIndex() != 0
+		a.llamaForm.errLabel.Hidden = tabs.SelectedIndex() != 1
+		errBox.Refresh()
+	}
+	a.form.errLabel.Hidden = false
+	a.llamaForm.errLabel.Hidden = true
+	tabs.OnSelected = func(*container.TabItem) { syncErrVisible() }
+	syncErrVisible()
+
+	left := container.NewBorder(nil, nil, nil, nil, tabs)
 	right := container.NewVSplit(
-		container.NewVBox(a.status.StatusRow(), a.form.errLabel),
+		container.NewVBox(a.status.StatusRow(), errBox),
 		logArea)
 	right.Offset = 0.3 // 状态区占右栏 30%，日志占 70%，分割条可拖动
 	split := container.NewHSplit(left, right)

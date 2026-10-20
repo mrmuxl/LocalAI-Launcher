@@ -7,14 +7,14 @@ import (
 	"testing"
 )
 
-// TestLoadWorkerPathMissing 存档文件不存在 → 空串且无错误（首次使用语义）。
+// TestLoadWorkerPathMissing 存档文件不存在 → 零值记录且无错误（首次使用语义）。
 func TestLoadWorkerPathMissing(t *testing.T) {
-	p, err := loadWorkerPathFrom(filepath.Join(t.TempDir(), "worker.json"))
+	rec, err := loadWorkerRecordFrom(filepath.Join(t.TempDir(), "worker.json"))
 	if err != nil {
 		t.Fatalf("期望无错误, got %v", err)
 	}
-	if p != "" {
-		t.Fatalf("期望空路径, got %q", p)
+	if rec.WorkerPath != "" || rec.LlamaWorkerPath != "" {
+		t.Fatalf("期望空记录, got %+v", rec)
 	}
 }
 
@@ -24,16 +24,16 @@ func TestSaveLoadWorkerPathRoundtrip(t *testing.T) {
 	file := filepath.Join(dir, "worker.json")
 
 	want := `C:\tools\ninfer.exe`
-	if err := saveWorkerPathTo(file, want); err != nil {
+	if err := saveWorkerRecordTo(file, WorkerPathRecord{WorkerPath: want}); err != nil {
 		t.Fatalf("保存失败: %v", err)
 	}
 
-	got, err := loadWorkerPathFrom(file)
+	rec, err := loadWorkerRecordFrom(file)
 	if err != nil {
 		t.Fatalf("读取失败: %v", err)
 	}
-	if got != want {
-		t.Fatalf("roundtrip 不一致: want %q, got %q", want, got)
+	if rec.WorkerPath != want {
+		t.Fatalf("roundtrip 不一致: want %q, got %q", want, rec.WorkerPath)
 	}
 }
 
@@ -43,16 +43,38 @@ func TestSaveLoadWorkerPathRoundtripNested(t *testing.T) {
 	file := filepath.Join(dir, "nested", "worker.json")
 
 	want := `/opt/ninfer/ninfer`
-	if err := saveWorkerPathTo(file, want); err != nil {
+	if err := saveWorkerRecordTo(file, WorkerPathRecord{WorkerPath: want}); err != nil {
 		t.Fatalf("保存失败: %v", err)
 	}
 
-	got, err := loadWorkerPathFrom(file)
+	rec, err := loadWorkerRecordFrom(file)
 	if err != nil {
 		t.Fatalf("读取失败: %v", err)
 	}
-	if got != want {
-		t.Fatalf("roundtrip 不一致: want %q, got %q", want, got)
+	if rec.WorkerPath != want {
+		t.Fatalf("roundtrip 不一致: want %q, got %q", want, rec.WorkerPath)
+	}
+}
+
+// TestSaveLlamaWorkerPath_preservesNinferPath 写入 llama 路径不得覆盖 ninfer 路径。
+func TestSaveLlamaWorkerPath_preservesNinferPath(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "worker.json")
+	if err := saveWorkerRecordTo(file, WorkerPathRecord{WorkerPath: `C:\a\ninfer.exe`}); err != nil {
+		t.Fatalf("预置存档失败: %v", err)
+	}
+
+	// SaveLlamaWorkerPath 写默认位置，无法注入临时目录；直接验证记录级读写语义。
+	rec := WorkerPathRecord{WorkerPath: `C:\a\ninfer.exe`, LlamaWorkerPath: `C:\b\llama-server.exe`}
+	if err := saveWorkerRecordTo(file, rec); err != nil {
+		t.Fatalf("保存失败: %v", err)
+	}
+	got, err := loadWorkerRecordFrom(file)
+	if err != nil {
+		t.Fatalf("读取失败: %v", err)
+	}
+	if got.WorkerPath != rec.WorkerPath || got.LlamaWorkerPath != rec.LlamaWorkerPath {
+		t.Fatalf("双路径 roundtrip 不一致: want %+v, got %+v", rec, got)
 	}
 }
 
@@ -64,7 +86,7 @@ func TestLoadWorkerPathCorrupt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := loadWorkerPathFrom(file)
+	_, err := loadWorkerRecordFrom(file)
 	if err == nil {
 		t.Fatal("期望解析失败返回错误, got nil")
 	}

@@ -29,14 +29,15 @@ func buildWindowContent(t *testing.T) fyne.Window {
 	t.Helper()
 	w := newTestWindow(t)
 
-	form := NewForm(w)
+	form := NewNinferForm(w)
+	llamaForm := NewLlamaForm(w)
 	ring := process.NewRingLog(0)
 	logv := NewLogView(ring)
 	msgLbl := widget.NewLabel("")
 	msgLbl.Wrapping = fyne.TextWrapWord
 	status := NewStatusPanel(func() {}, func() {})
 
-	a := &App{form: form, status: status, logv: logv, msgLbl: msgLbl}
+	a := &App{form: form, llamaForm: llamaForm, status: status, logv: logv, msgLbl: msgLbl}
 	a.buildLayout(w)
 	return w
 }
@@ -57,7 +58,7 @@ func TestWindowConstruction(t *testing.T) {
 // TestFormFieldCount 表单控件数必须为 34（30 Entry + 4 Check，8 组）。
 func TestFormFieldCount(t *testing.T) {
 	w := newTestWindow(t)
-	f := NewForm(w)
+	f := NewNinferForm(w)
 
 	if got := f.CountFields(); got != 34 {
 		t.Fatalf("字段定义数 = %d，期望 34", got)
@@ -67,6 +68,19 @@ func TestFormFieldCount(t *testing.T) {
 	}
 	if got := len(f.GroupNames()); got != 8 {
 		t.Fatalf("分组数 = %d，期望 8", got)
+	}
+}
+
+// TestLlamaFormFieldCount llama 表单控件数必须为 18（7 组）。
+func TestLlamaFormFieldCount(t *testing.T) {
+	w := newTestWindow(t)
+	f := NewLlamaForm(w)
+
+	if got := f.CountFields(); got != 18 {
+		t.Fatalf("llama 字段定义数 = %d，期望 18", got)
+	}
+	if got := len(f.entries) + len(f.checks); got != 18 {
+		t.Fatalf("llama 实际控件数 = %d（Entry %d + Check %d），期望 18", got, len(f.entries), len(f.checks))
 	}
 }
 
