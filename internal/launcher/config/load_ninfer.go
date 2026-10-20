@@ -4,16 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 )
-
-// ConfigPathFor 返回推理程序所在目录下的指定配置文件名：
-// 配置持久化文件跟随推理程序（便携式，换程序目录即换一套配置）。
-// workerPath 为相对路径（如默认值 ninfer.exe）时，随运行时工作目录解析。
-// filename 如 "config.json"（ninfer）或 "llama.json"（llama.cpp）。
-func ConfigPathFor(workerPath, filename string) string {
-	return filepath.Join(filepath.Dir(workerPath), filename)
-}
 
 // LoadConfig 从 path 读取 JSON 配置。
 //   - 文件不存在：返回 DefaultConfig()，不报错。

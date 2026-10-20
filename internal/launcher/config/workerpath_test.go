@@ -78,6 +78,21 @@ func TestSaveLlamaWorkerPath_preservesNinferPath(t *testing.T) {
 	}
 }
 
+// Test_ConfigPathFor_when_workerPathGiven_returnsSameDir
+// 配置文件跟随推理程序：绝对路径 → 同目录指定文件名；相对路径 → 工作目录。
+func Test_ConfigPathFor_when_workerPathGiven_returnsSameDir(t *testing.T) {
+	abs := filepath.Join("D:", "ninfer", "ninfer.exe")
+	if got := ConfigPathFor(abs, "config.json"); got != filepath.Join("D:", "ninfer", "config.json") {
+		t.Errorf("ConfigPathFor(abs) = %q, want same dir config.json", got)
+	}
+	if got := ConfigPathFor(abs, "llama.json"); got != filepath.Join("D:", "ninfer", "llama.json") {
+		t.Errorf("ConfigPathFor(abs, llama.json) = %q, want same dir llama.json", got)
+	}
+	if got := ConfigPathFor("ninfer.exe", "config.json"); got != "config.json" {
+		t.Errorf("ConfigPathFor(relative) = %q, want config.json in work dir", got)
+	}
+}
+
 // TestLoadWorkerPathCorrupt JSON 损坏应返回错误且语义可读。
 func TestLoadWorkerPathCorrupt(t *testing.T) {
 	dir := t.TempDir()

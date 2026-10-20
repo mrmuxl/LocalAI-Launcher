@@ -94,9 +94,3 @@ func BuildArgs(cfg config.Config) []string {
 
 	return args
 }
-
-// formatFloat 契约要求的 float 文本格式：
-// strconv.FormatFloat(v, 'g', -1, 64)（0.7→"0.7"，不产生 "0.700000"）。
-func formatFloat(v float64) string {
-	return strconv.FormatFloat(v, 'g', -1, 64)
-}
