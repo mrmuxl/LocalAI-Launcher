@@ -12,6 +12,8 @@ make build-launcher
 
 产物为 `bin/LocalAI-launcher.exe`。发布构建用 `make build-release`（`-H windowsgui` 链接标志，双击 exe 不弹控制台/cmd 窗口，直接出界面）。
 
+构建时经 ldflags `-X` 把版本号嵌入程序（启动横幅显示）：版本取 `git describe --tags --always --dirty`（有 tag 用 tag 如 `v0.2.0`，无 tag 用短 commit hash，工作区脏加 `-dirty`），也可显式指定 `make build-release VERSION=0.2.0`。
+
 ## 运行
 
 1. 双击运行 `bin/LocalAI-launcher.exe`。窗口标题「LocalAI 启动器」，终端输出版本横幅 `LocalAI-launcher v0.1.0`。
