@@ -127,3 +127,94 @@ func TestStartButtonDisabledInTransition(t *testing.T) {
 		t.Fatal("stopping: 两按钮均应禁用")
 	}
 }
+
+// TestIsAtBottom 表驱动测试 sticky-bottom 判定纯函数。
+func TestIsAtBottom(t *testing.T) {
+	tests := []struct {
+		name           string
+		contentHeight  float32
+		viewportHeight float32
+		offset         float32
+		want           bool
+	}{
+		{"尚未布局：视口高度为 0", 500, 0, 0, true},
+		{"尚未布局：内容高度为 0", 0, 300, 0, true},
+		{"内容不超出视口", 200, 300, 0, true},
+		{"已在底部", 1000, 300, 700, true},
+		{"距底部 39px（阈值内）", 1000, 300, 661, true},
+		{"距底部 40px（恰好阈值）", 1000, 300, 660, true},
+		{"距底部 41px（超出阈值）", 1000, 300, 659, false},
+		{"在顶部", 1000, 300, 0, false},
+		{"内容恰好等于视口+1px", 301, 300, 1, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isAtBottom(tc.contentHeight, tc.viewportHeight, tc.offset); got != tc.want {
+				t.Fatalf("isAtBottom(%v, %v, %v) = %v，期望 %v",
+					tc.contentHeight, tc.viewportHeight, tc.offset, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestLogViewRefreshNoPanic 验证 Refresh 在有日志内容时不 panic 且文本正确更新。
+func TestLogViewRefreshNoPanic(t *testing.T) {
+	t.Helper()
+	test.NewApp()
+
+	ring := process.NewRingLog(10)
+	ring.Append("line 1")
+	ring.Append("line 2")
+	ring.Append("line 3")
+
+	lv := NewLogView(ring)
+	scroll := lv.Content()
+	if scroll == nil {
+		t.Fatal("Content() 返回 nil")
+	}
+
+	// 首次刷新：文本应从占位符变为实际日志
+	lv.Refresh()
+	want := "line 1\nline 2\nline 3"
+	if lv.seg.Text != want {
+		t.Fatalf("Refresh 后 seg.Text = %q，期望 %q", lv.seg.Text, want)
+	}
+
+	// 追加新行后再次刷新
+	ring.Append("line 4")
+	lv.Refresh()
+	want = "line 1\nline 2\nline 3\nline 4"
+	if lv.seg.Text != want {
+		t.Fatalf("追加后 seg.Text = %q，期望 %q", lv.seg.Text, want)
+	}
+
+	// 空 ring 回退到占位符
+	emptyRing := process.NewRingLog(10)
+	lv2 := NewLogView(emptyRing)
+	lv2.Content()
+	lv2.Refresh()
+	if lv2.seg.Text != "（暂无日志输出）" {
+		t.Fatalf("空 ring 刷新后 seg.Text = %q，期望占位符", lv2.seg.Text)
+	}
+}
+
+// TestLogViewSetRingForceBottom 验证 SetRing 切换数据源后正常刷新不 panic。
+func TestLogViewSetRingForceBottom(t *testing.T) {
+	t.Helper()
+	test.NewApp()
+
+	ringA := process.NewRingLog(10)
+	ringA.Append("A line 1")
+	ringA.Append("A line 2")
+
+	ringB := process.NewRingLog(10)
+	ringB.Append("B line 1")
+
+	lv := NewLogView(ringA)
+	lv.Content()
+
+	lv.SetRing(ringB)
+	if lv.seg.Text != "B line 1" {
+		t.Fatalf("SetRing 后 seg.Text = %q，期望 %q", lv.seg.Text, "B line 1")
+	}
+}
