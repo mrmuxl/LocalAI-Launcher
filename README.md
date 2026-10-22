@@ -1,45 +1,80 @@
-# NInfer Launcher
+# LocalAI-Launcher
 
-NInfer 和llama.cpp 推理引擎的 Windows 桌面启动器（推理引擎可执行文件名任意）：Fyne v2 中文图形界面，替代手工执行 `docs/scripts/windows/start-ninfer.ps1`，用表单完成参数配置、启动/停止进程与日志实时查看。
+Windows 桌面推理引擎启动器。基于 Fyne v2 的中文图形界面，用于管理 NInfer 与 llama.cpp 两个推理引擎的配置、启动/停止与日志查看。推理引擎可执行文件名任意。
 
-## 构建
+## 功能特性
 
-需要 Go 1.26（依赖 `fyne.io/fyne/v2`）：
+- 双引擎 tab 图形界面，表单化参数配置与逐字段中文校验
+- 一键启动/停止推理引擎，实时日志面板（双引擎独立环形缓冲，各保留最近 500 行）
+- llama.cpp 支持单模型与 route 预设（models-preset）两种启动模式，支持 MoE 相关参数
+- 便携式配置：全部配置文件存于 exe 同级目录，整目录拷贝即完成迁移
+- 单实例保护（Windows 命名互斥锁，重复启动弹窗提示）
+- 引擎后台静默启动（CREATE_NO_WINDOW，不弹出引擎 cmd 窗口）
+
+## 环境要求
+
+- 运行：Windows 10 及以上
+- 构建：Go 1.26+（依赖 `fyne.io/fyne/v2`）
+
+## 快速开始
+
+### 构建
 
 ```sh
 make build-launcher
 ```
 
-产物为 `bin/LocalAI-launcher.exe`。发布构建用 `make build-release`（`-H windowsgui` 链接标志，双击 exe 不弹控制台/cmd 窗口，直接出界面）。
+产物为 `bin/LocalAI-launcher.exe`。发布构建用 `make build-release`（`-H windowsgui` 链接标志，双击 exe 不弹控制台/cmd 窗口，直接出界面）。版本经 ldflags 注入：取 `git describe`（有 tag 用 tag，无 tag 用短 commit hash，工作区脏加 `-dirty`），也可用 `make build-release VERSION=x.y.z` 显式指定。
 
-构建时经 ldflags `-X` 把版本号嵌入程序（启动横幅显示）：版本取 `git describe --tags --always --dirty`（有 tag 用 tag 如 `v0.2.0`，无 tag 用短 commit hash，工作区脏加 `-dirty`），也可显式指定 `make build-release VERSION=0.2.0`。
+### 运行
 
-## 运行
+双击 `bin/LocalAI-launcher.exe` 即可。界面分为左右两栏：左栏为双引擎 tab 表单，右栏自上而下为状态区、操作行与日志区，中间分割条可拖动。右栏状态区显示运行状态（状态/PID/运行时长/最新日志）、版本号及 GitHub 项目链接与维护者邮箱。
 
-1. 双击运行 `bin/LocalAI-launcher.exe`。窗口标题「LocalAI 启动器 v<构建版本> · https://github.com/mrmuxl/LocalAI-Launcher · xl@zhiwo.net」，终端输出版本横幅 `LocalAI-launcher v<构建版本>`；右栏状态区左右两栏——左侧运行状态（状态/PID/运行时长/最新日志），右侧版本号、可点击的 GitHub 项目链接（https://github.com/mrmuxl/LocalAI-Launcher）与维护者邮箱（xl@zhiwo.net）。
-2. 左栏双引擎 tab：**NInfer**（33 字段，对齐 start-ninfer.bat 默认配方）与 **llama.cpp**（46 字段，对齐 Qwen3.8-27B-GSQ_S-MTP.cmd 启动脚本），各自独立表单、独立推理引擎行与配置。每个 tab 的「服务」组下有「推理引擎」行指定该引擎的 worker 可执行文件（文件名任意）：输入路径后回车，或点「打开」弹文件选择窗口；llama.cpp tab 的「模型文件」「视觉模型」「聊天模板文件」行同样有「打开」按钮。llama.cpp tab 的「服务」组之下、「推理引擎」行之上还有「启动模式」下拉框：**单模型**（默认，`-m` 直启）与 **route 预设（models-preset）**（`--models-preset` 加载 model.ini，模型/视觉由预设文件决定）——切到 route 模式时「模型文件」「视觉模型」两行隐藏，显示「预设文件」行（.ini，带「打开」按钮）。文件选择使用 fyne 内置文件弹窗（含磁盘/常用位置侧栏、上下级目录浏览），起始目录自动定位到上次所在目录（记忆持久化到 worker.json，下次打开直接定位）。启动时若已有存档则直接采用，否则静默使用默认路径并在操作反馈中提示，不会自动弹窗。所选路径持久化，下次启动直接使用。
-3. 右栏顶部操作行：点「保存配置」持久化、「配置加载」重新读取；点「启动」按当前 tab 的引擎拉起 worker（Windows 下以 `CREATE_NO_WINDOW` 启动，不弹出推理引擎的 cmd 窗口），日志面板实时显示输出（保留最近 500 行；两引擎日志各自独立环形缓冲，切换 tab 时右栏日志跟随当前引擎，互不混写）；「停止」先发 3 秒宽限等待自行退出，超时后强杀。操作行之下右栏分成两栏（分割条可拖动）：上为状态表格与校验行，下为日志区。
+## 使用说明
 
-- 单实例：Windows 下使用命名互斥锁 `Global\NinferLauncher`，第二个实例弹中文提示并退出（其他平台该锁为 no-op）。
+### 推理引擎路径
 
-## 配置路径
+每个 tab 的「服务」组下「推理引擎」行指定该引擎 worker 可执行文件（文件名任意）。输入路径回车或点「打开」选择文件；llama.cpp tab 的「模型文件」「视觉模型」「聊天模板文件」行同样有「打开」按钮。路径持久化到 worker.json，下次启动直接采用；存档指向的文件被删除时静默回退默认路径并在界面提示。文件选择起始目录自动定位到上次所在目录。
 
-全部配置文件便携式存放于启动器 exe 同级目录（整个目录拷走即整套配置，与推理引擎位置无关）：
+### 启动模式（llama.cpp）
 
-- NInfer：启动器 exe 同级目录下的 `ninfer.json`（33 字段）；
-- llama.cpp：启动器 exe 同级目录下的 `llama.json`（48 字段，含 startMode/modelsPreset）；
-- worker 路径存档：启动器 exe 同级目录下的 `worker.json`。
+llama.cpp tab「服务」组下「启动模式」下拉框提供两种模式：
 
-- 文件不存在：加载使用内置默认值，不报错；
-- JSON 损坏：加载报错，不覆盖原文件；
-- 点「保存配置」时自动创建目录并写完整配置。
+- 单模型（默认）：`-m` 直启
+- route 预设（models-preset）：`--models-preset` 加载 model.ini，模型/视觉由预设文件决定
 
-## worker 路径
+切到 route 模式时「模型文件」「视觉模型」行隐藏，显示「预设文件」行。
 
-启动器 exe 同级目录下的 `worker.json`：引导存档（记录两个引擎的推理引擎在哪）。`workerPath` 存 NInfer 引擎的推理引擎路径（文件名任意），`llamaWorkerPath` 存 llama.cpp 引擎的推理引擎路径（文件名任意）；在对应 tab 的「推理引擎」行输入路径回车或点「打开」选择时写入，仅保存可执行文件绝对路径，下次启动直接采用。存档指向的文件被删除时，启动会静默回退默认路径并提示，可重新指定。
+### 启动与停止
 
-## 与 server 的关系
+- 「启动」：按当前 tab 引擎拉起 worker
+- 「停止」：等待 3 秒宽限后强杀（Windows 标准库不支持向子进程发送优雅退出信号，宽限期为固定等待）
 
-- 启动器只是管理前端，不含任何服务端/推理逻辑，服务仍由 NInfer 推理引擎提供。
-- 点「启动」时按「argv 构造契约」（见 `internal/argv`）把表单配置逐字翻译成 worker 命令行参数（固定段 + 条件段 + 缓存段）再启动进程；GUI 字段与 argv flag 一一对应。
-- 本仓库不修改 worker 源码；`docs/scripts/windows/*.ps1` 启动脚本与启动器是同一服务包的两条等价启动途径。
+## 配置文件
+
+全部配置文件便携式存放于启动器 exe 同级目录：
+
+- `ninfer.json`：NInfer 配置
+- `llama.json`：llama.cpp 配置（含启动模式）
+- `worker.json`：两引擎 worker 路径存档
+
+行为规则：
+
+- 文件不存在：加载使用内置默认值，不报错
+- JSON 损坏：加载报错，不覆盖原文件
+- 保存时自动创建目录并写完整配置
+
+## 架构说明
+
+- 启动器是纯管理前端，不含任何服务端/推理逻辑，服务由推理引擎提供
+- 启动时把表单配置逐字翻译为引擎命令行参数（GUI 字段与参数一一对应）
+- 本仓库不修改引擎源码
+
+## 联系方式
+
+- GitHub: https://github.com/mrmuxl/LocalAI-Launcher
+- 邮箱: xl@zhiwo.net
+
+## License
+
+本项目基于 Apache License 2.0 发布，详见 LICENSE 文件。
