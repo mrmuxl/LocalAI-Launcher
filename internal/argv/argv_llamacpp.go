@@ -8,11 +8,12 @@
 //     --cache-type-v/k(-draft) --spec-type --spec-draft-n-min/max
 //     --ctx-checkpoints --poll --cache-ram --temp --top-p --top-k --min-p
 //     --presence-penalty --repeat-penalty
-//  2. 布尔开关段：--mmproj-offload --jinja --reasoning-preserve
+//  2. MoE 条件段（MoeModelType=="moe"）：--cpu-moe / --n-cpu-moe N / --moe-cache-mib N
+//  3. 布尔开关段：--mmproj-offload --jinja --reasoning-preserve
 //     --no-cache-idle-slots --no-host --no-warmup
-//  3. 条件段：MmprojPath 非空→--mmproj；ChatTemplateFile 非空→
+//  4. 条件段：MmprojPath 非空→--mmproj；ChatTemplateFile 非空→
 //     --chat-template-file；ChatTemplateKwargs 非空→--chat-template-kwargs
-//  4. 数值条件段：ImageMinTokens/ImageMaxTokens 恒传（脚本默认 1024/4096）
+//  5. 数值条件段：ImageMinTokens/ImageMaxTokens 恒传（脚本默认 1024/4096）
 //
 // 纯函数：无副作用，不涉及 os/exec。
 package argv
@@ -71,7 +72,20 @@ func BuildLlamaArgs(cfg config.LlamaConfig) []string {
 		"--repeat-penalty", formatFloat(cfg.RepeatPenalty),
 	)
 
-	// 2. 布尔开关段：true 时追加 flag（无值）
+	// MoE 条件段：仅 MoeModelType == "moe" 时构造（dense/空值/未知值按 dense 处理，不传 MoE 参数）
+	// llama-server 对 flag 顺序不敏感，顺序为可读性锁定。
+	if cfg.MoeModelType == "moe" {
+		if cfg.MoeCpuMode == "all" {
+			args = append(args, "--cpu-moe")
+		} else if cfg.MoeCpuMode == "firstN" && cfg.NCpuMoe > 0 {
+			args = append(args, "--n-cpu-moe", strconv.Itoa(cfg.NCpuMoe))
+		}
+		if cfg.MoeCacheMB > 0 {
+			args = append(args, "--moe-cache-mib", strconv.Itoa(cfg.MoeCacheMB))
+		}
+	}
+
+	// 3. 布尔开关段：true 时追加 flag（无值）
 	if cfg.KvUnified {
 		args = append(args, "--kv-unified")
 	}
@@ -94,7 +108,7 @@ func BuildLlamaArgs(cfg config.LlamaConfig) []string {
 		args = append(args, "--no-warmup")
 	}
 
-	// 3. 条件段：路径/模板非空才传
+	// 4. 条件段：路径/模板非空才传
 	// route 模式：mmproj 由预设文件决定，不传 --mmproj。
 	if cfg.MmprojPath != "" && cfg.StartMode != "route" {
 		args = append(args, "--mmproj", cfg.MmprojPath)

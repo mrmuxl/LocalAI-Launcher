@@ -1,4 +1,4 @@
-// form_llamacpp.go llama.cpp 引擎的表单（46 字段 / 9 组）。
+// form_llamacpp.go llama.cpp 引擎的表单（49 字段 / 9 组）。
 //
 // 与 ninfer 表单（form_ninfer.go）完全分离：字段集、默认值、argv flag
 // 都不同（对应 Qwen3.8-27B-GSQ_S-MTP.cmd 启动脚本）。复用同包的
@@ -26,7 +26,7 @@ type llamaFieldDef struct {
 	options []string // kindSelect 的选项
 }
 
-// llamaFieldDefs：46 字段，9 组，顺序与 config.LlamaConfig 字段顺序一致。
+// llamaFieldDefs：49 字段，9 组，顺序与 config.LlamaConfig 字段顺序一致。
 // 字段与默认值对齐 Qwen3.8-27B-GSQ_S-MTP.cmd 启动脚本（真实 llama-server 参数）；
 // 标签末尾括号内为对应命令行参数。
 var llamaFieldDefs = []llamaFieldDef{
@@ -49,11 +49,14 @@ var llamaFieldDefs = []llamaFieldDef{
 	{"上下文与批处理", "BatchSize", "批大小（-b）", kindInt, nil},
 	{"上下文与批处理", "UbatchSize", "微批大小（-ub）", kindInt, nil},
 	{"上下文与批处理", "Keep", "保留 token 数（--keep，-1 = 全保留）", kindInt, nil},
-	// GPU 与加载（4）
+	// GPU 与加载（7）
 	{"GPU 与加载", "GpuLayers", "GPU 层数（--gpu-layers）", kindInt, nil},
 	{"GPU 与加载", "GpuLayersDraft", "草稿模型 GPU 层数（--gpu-layers-draft）", kindString, nil},
 	{"GPU 与加载", "LoadMode", "加载模式（--load-mode）", kindString, nil},
 	{"GPU 与加载", "NoWarmup", "跳过预热（--no-warmup）", kindBool, nil},
+	{"GPU 与加载", "MoeCpuMode", "MoE CPU 卸载", kindSelect, []string{"不启用", "全部驻留 CPU", "前 N 层驻留 CPU"}},
+	{"GPU 与加载", "NCpuMoe", "MoE 驻留 CPU 层数（--n-cpu-moe）", kindInt, nil},
+	{"GPU 与加载", "MoeCacheMB", "MoE 缓存 MiB（--moe-cache-mib，0 = 不传）", kindInt, nil},
 	// KV 缓存（7）
 	{"KV 缓存", "CacheTypeV", "V 缓存量化（--cache-type-v）", kindSelect,
 		[]string{"f16", "bf16", "q8_0", "q4_0", "q4_1", "iq4_nl"}},
@@ -95,7 +98,7 @@ var llamaFieldDefs = []llamaFieldDef{
 	{"采样", "RepeatPenalty", "重复惩罚（--repeat-penalty）", kindFloat, nil},
 }
 
-// LlamaForm 持有 llama.cpp 表单全部控件（46 个）与校验状态行。
+// LlamaForm 持有 llama.cpp 表单全部控件（49 个）与校验状态行。
 // 所有方法必须运行在主线程（Fyne 约束）。
 type LlamaForm struct {
 	window   fyne.Window
@@ -112,6 +115,11 @@ type LlamaForm struct {
 	modelRow        fyne.CanvasObject // 模型文件行（route 模式下隐藏）
 	mmprojRow       fyne.CanvasObject // 视觉模型行（route 模式下隐藏）
 	presetRow       fyne.CanvasObject // 预设文件行（单模型模式下隐藏）
+
+	moeTypeSelect *widget.Select    // 模型类型：密集 / MoE
+	moeCpuModeRow fyne.CanvasObject // MoE CPU 卸载行（dense 时隐藏）
+	nCpuMoeRow    fyne.CanvasObject // MoE 驻留 CPU 层数行（dense / 非 firstN 时隐藏）
+	moeCacheRow   fyne.CanvasObject // MoE 缓存行（dense 时隐藏）
 
 	onChange        func()            // App 注入：字段变化时触发后台校验
 	onOpenWorker    func()            // App 注入：打开按钮 → 文件选择窗口
@@ -143,6 +151,12 @@ func NewLlamaForm(window fyne.Window) *LlamaForm {
 		case kindSelect:
 			s := widget.NewSelect(d.options, func(string) { f.notifyChange() })
 			f.selects[d.name] = s
+			if d.name == "MoeCpuMode" {
+				s.OnChanged = func(string) {
+					f.applyMoeVisibility()
+					f.notifyChange()
+				}
+			}
 			controls[d.name] = s
 		default:
 			e := widget.NewEntry()
@@ -197,6 +211,23 @@ func NewLlamaForm(window fyne.Window) *LlamaForm {
 		}
 		if d.name == "ChatTemplateFile" {
 			sections = append(sections, f.buildChatTemplatePathRow(labelWidth))
+			continue
+		}
+		if d.name == "MoeCpuMode" {
+			// 「模型类型」独立行置于 MoE CPU 卸载行之前（GPU 与加载组末尾）。
+			sections = append(sections, f.buildMoeTypeRow(labelWidth))
+			f.moeCpuModeRow = row(d.label, controls[d.name], !isSelect)
+			sections = append(sections, f.moeCpuModeRow)
+			continue
+		}
+		if d.name == "NCpuMoe" {
+			f.nCpuMoeRow = row(d.label, controls[d.name], true)
+			sections = append(sections, f.nCpuMoeRow)
+			continue
+		}
+		if d.name == "MoeCacheMB" {
+			f.moeCacheRow = row(d.label, controls[d.name], true)
+			sections = append(sections, f.moeCacheRow)
 			continue
 		}
 		sections = append(sections, row(d.label, controls[d.name], !isCheck && !isSelect))
@@ -292,6 +323,84 @@ func (f *LlamaForm) applyStartModeVisibility() {
 		} else {
 			f.presetRow.Hide()
 		}
+	}
+}
+
+// moeTypeLabel / moeTypeValue 是「模型类型」Select 的选项文案与配置值映射。
+func moeTypeLabel(t string) string {
+	if t == "moe" {
+		return "MoE 模型"
+	}
+	return "密集模型"
+}
+
+func moeTypeValue(label string) string {
+	if label == "MoE 模型" {
+		return "moe"
+	}
+	return "dense"
+}
+
+// moeCpuModeLabel / moeCpuModeValue 是「MoE CPU 卸载」Select 的选项文案与配置值映射。
+func moeCpuModeLabel(mode string) string {
+	switch mode {
+	case "all":
+		return "全部驻留 CPU"
+	case "firstN":
+		return "前 N 层驻留 CPU"
+	default:
+		return "不启用"
+	}
+}
+
+func moeCpuModeValue(label string) string {
+	switch label {
+	case "全部驻留 CPU":
+		return "all"
+	case "前 N 层驻留 CPU":
+		return "firstN"
+	default:
+		return "off"
+	}
+}
+
+// buildMoeTypeRow 构建「模型类型」行：Select 切换密集 / MoE，
+// 切换时联动 MoE 相关三行可见性并触发校验。
+func (f *LlamaForm) buildMoeTypeRow(labelWidth float32) fyne.CanvasObject {
+	f.moeTypeSelect = widget.NewSelect([]string{"密集模型", "MoE 模型"}, func(string) {
+		f.applyMoeVisibility()
+		f.notifyChange()
+	})
+	return container.NewHBox(
+		newFixedWidth(widget.NewLabel("模型类型"), labelWidth),
+		f.moeTypeSelect,
+		layout.NewSpacer(),
+	)
+}
+
+// applyMoeVisibility 两级联动控制行可见性：
+// dense（含空）→ 隐藏 MoE 三行；moe → 显示 MoE CPU 卸载与 MoE 缓存行，
+// 仅「前 N 层驻留 CPU」时显示驻留 CPU 层数行。
+func (f *LlamaForm) applyMoeVisibility() {
+	if f.moeTypeSelect == nil {
+		return
+	}
+	moe := f.moeTypeSelect.Selected == "MoE 模型"
+	firstN := f.selects["MoeCpuMode"] != nil &&
+		f.selects["MoeCpuMode"].Selected == "前 N 层驻留 CPU"
+	for _, r := range []fyne.CanvasObject{f.moeCpuModeRow, f.nCpuMoeRow, f.moeCacheRow} {
+		if r == nil {
+			continue
+		}
+		if !moe {
+			r.Hide()
+			continue
+		}
+		if r == f.nCpuMoeRow && !firstN {
+			r.Hide()
+			continue
+		}
+		r.Show()
 	}
 }
 
@@ -408,7 +517,7 @@ func (f *LlamaForm) notifyChange() {
 	}
 }
 
-// CountFields 返回字段总数（应为 46）。
+// CountFields 返回字段总数（应为 49）。
 func (f *LlamaForm) CountFields() int { return len(llamaFieldDefs) }
 
 // GroupNames 返回分组名列表（去重、按出现顺序）。
@@ -453,6 +562,11 @@ func (f *LlamaForm) SetFieldsFrom(cfg config.LlamaConfig) {
 	f.entries["GpuLayersDraft"].SetText(cfg.GpuLayersDraft)
 	f.entries["LoadMode"].SetText(cfg.LoadMode)
 	f.checks["NoWarmup"].SetChecked(cfg.NoWarmup)
+	f.moeTypeSelect.SetSelected(moeTypeLabel(cfg.MoeModelType))
+	f.selects["MoeCpuMode"].SetSelected(moeCpuModeLabel(cfg.MoeCpuMode))
+	f.entries["NCpuMoe"].SetText(strconv.Itoa(cfg.NCpuMoe))
+	f.entries["MoeCacheMB"].SetText(strconv.Itoa(cfg.MoeCacheMB))
+	f.applyMoeVisibility()
 
 	f.selects["CacheTypeV"].SetSelected(cfg.CacheTypeV)
 	f.selects["CacheTypeK"].SetSelected(cfg.CacheTypeK)
@@ -489,7 +603,8 @@ func (f *LlamaForm) SetFieldsFrom(cfg config.LlamaConfig) {
 // CollectConfig 从控件收集当前配置（主线程轻量读）。
 // 第二个返回值是中文解析错误列表（空串按默认值处理）。
 func (f *LlamaForm) CollectConfig() (config.LlamaConfig, []string) {
-	var cfg config.LlamaConfig
+	// 以默认配置起步：表单空值时回退默认值而非零值（与加载失败时行为一致）
+	cfg := config.DefaultLlamaConfig()
 	var errs []string
 
 	if f.startModeSelect.Selected == "route 预设（models-preset）" {
@@ -522,6 +637,17 @@ func (f *LlamaForm) CollectConfig() (config.LlamaConfig, []string) {
 	cfg.GpuLayersDraft = f.entries["GpuLayersDraft"].Text
 	cfg.LoadMode = f.entries["LoadMode"].Text
 	cfg.NoWarmup = f.checks["NoWarmup"].Checked
+	cfg.MoeModelType = moeTypeValue(f.moeTypeSelect.Selected)
+	cfg.MoeCpuMode = moeCpuModeValue(f.selects["MoeCpuMode"].Selected)
+	cfg.NCpuMoe, errs = collectInt(f.entries["NCpuMoe"], "MoE 驻留 CPU 层数", cfg.NCpuMoe, errs)
+	cfg.MoeCacheMB, errs = collectInt(f.entries["MoeCacheMB"], "MoE 缓存 MiB", cfg.MoeCacheMB, errs)
+	if cfg.MoeModelType == "dense" {
+		cfg.MoeCpuMode = "off"
+		cfg.NCpuMoe = 0
+		cfg.MoeCacheMB = 0
+	} else if cfg.MoeCpuMode != "firstN" {
+		cfg.NCpuMoe = 0
+	}
 
 	cfg.CacheTypeV = f.selects["CacheTypeV"].Selected
 	cfg.CacheTypeK = f.selects["CacheTypeK"].Selected

@@ -1,6 +1,6 @@
 // llamacpp.go llama.cpp 推理引擎的配置结构与持久化。
 //
-// 与 ninfer 的 32 字段 Config（config_ninfer.go）完全分离：字段集、默认值、
+// 与 ninfer 的 33 字段 Config（config_ninfer.go）完全分离：字段集、默认值、
 // argv flag 都不同（见 H:\models\Qwen3.8-27B-GSQ_S-MTP.cmd 启动脚本）。
 // 持久化为启动器 exe 同级目录下的 llama.json（与 ninfer.json 同目录不同名）。
 package config
@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 )
 
-// LlamaConfig llama.cpp 引擎的 46 个配置字段（对应 Qwen3.8-27B-GSQ_S-MTP.cmd）。
+// LlamaConfig llama.cpp 引擎的 52 个配置字段（对应 Qwen3.8-27B-GSQ_S-MTP.cmd）。
 type LlamaConfig struct {
 	// 服务
 	// 启动模式
@@ -41,7 +41,13 @@ type LlamaConfig struct {
 	Keep       int `json:"keep"`       // --keep
 
 	// GPU 与加载
-	GpuLayers      int    `json:"gpuLayers"`      // --gpu-layers
+	GpuLayers int `json:"gpuLayers"` // --gpu-layers
+	// MoE 模型类型（不产生 argv，仅表单联动与校验用）
+	MoeModelType string `json:"moeModelType"` // "dense"（密集模型）| "moe"（MoE 模型）
+	// MoE CPU 卸载模式（仅 MoE 模型生效）
+	MoeCpuMode     string `json:"moeCpuMode"`     // "off"（不启用）| "all"（全部驻留 CPU）| "firstN"（前 N 层驻留 CPU）
+	NCpuMoe        int    `json:"nMoeCpu"`        // --n-cpu-moe（仅 firstN 模式生效）
+	MoeCacheMB     int    `json:"moeCacheMb"`     // --moe-cache-mib（0=不传）
 	GpuLayersDraft string `json:"gpuLayersDraft"` // --gpu-layers-draft
 	LoadMode       string `json:"loadMode"`       // --load-mode
 	NoWarmup       bool   `json:"noWarmup"`       // --no-warmup
@@ -109,6 +115,10 @@ func DefaultLlamaConfig() LlamaConfig {
 		Keep:       -1,
 
 		GpuLayers:      99,
+		MoeModelType:   "dense",
+		MoeCpuMode:     "off",
+		NCpuMoe:        0,
+		MoeCacheMB:     0,
 		GpuLayersDraft: "all",
 		LoadMode:       "mlock",
 		NoWarmup:       true,
@@ -180,7 +190,8 @@ func SaveLlamaConfig(cfg LlamaConfig, path string) error {
 			return fmt.Errorf("创建 llama 配置目录 %s 失败: %w", dir, err)
 		}
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	// 原子写：tmp+rename，进程中途被杀不会留下半写损坏的 JSON。
+	if err := saveJSONAtomic(path, data); err != nil {
 		return fmt.Errorf("写入 llama 配置 %s 失败: %w", path, err)
 	}
 	return nil
@@ -231,6 +242,21 @@ func ValidateLlama(cfg LlamaConfig) []string {
 	}
 	if cfg.GpuLayers < 0 {
 		errs = append(errs, "GPU 层数（--gpu-layers）不能为负")
+	}
+	// MoE 参数仅在 MoE 模式校验（dense 模型忽略这些字段，老配置无该字段时视为 dense）
+	if cfg.MoeModelType == "moe" {
+		if cfg.MoeCpuMode != "off" && cfg.MoeCpuMode != "all" && cfg.MoeCpuMode != "firstN" {
+			errs = append(errs, "MoE CPU 卸载模式（--cpu-moe）必须为 off/all/firstN")
+		}
+		if cfg.MoeCpuMode == "firstN" && cfg.NCpuMoe <= 0 {
+			errs = append(errs, "驻留 CPU 层数（--n-cpu-moe）在前 N 层模式下必须大于 0")
+		}
+		if cfg.NCpuMoe < 0 {
+			errs = append(errs, "驻留 CPU 层数（--n-cpu-moe）不能为负")
+		}
+		if cfg.MoeCacheMB < 0 {
+			errs = append(errs, "MoE 专家缓存（MiB）不能为负")
+		}
 	}
 	if cfg.CacheRam < 0 {
 		errs = append(errs, "缓存内存（--cache-ram）不能为负")
