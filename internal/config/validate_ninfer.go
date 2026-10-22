@@ -79,6 +79,10 @@ func Validate(cfg Config) []string {
 	if cfg.RecentTokens < 64 {
 		errs = append(errs, fmt.Sprintf("常驻后缀 %d 必须 ≥ 64（保留最新一页）", cfg.RecentTokens))
 	}
+	// 负数 sink 无意义（会污染下方 sinkBlocks 计算），先拦。
+	if cfg.SinkTokens < 0 {
+		errs = append(errs, "常驻前缀（--kvmem-sink-tokens）不能为负数")
+	}
 	sinkBlocks := int64(1)
 	if cfg.SinkTokens >= 64 {
 		sinkBlocks = int64(cfg.SinkTokens / 64)

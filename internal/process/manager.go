@@ -198,7 +198,7 @@ func (m *Manager) start(path string, args []string) error {
 	m.mu.Unlock()
 
 	if err := cmd.Start(); err != nil {
-		m.finishStartFailure(done)
+		m.finishStartFailure(done, err)
 		return err
 	}
 
@@ -230,19 +230,20 @@ func (m *Manager) start(path string, args []string) error {
 	return nil
 }
 
-// finishStartFailure 在 cmd.Start 失败时复位状态并关闭 done，
-// 避免并发 Wait 永久阻塞。
-func (m *Manager) finishStartFailure(done chan struct{}) {
+// finishStartFailure 在 cmd.Start 失败时复位状态、记录启动错误并关闭 done，
+// 避免并发 Wait 永久阻塞，且 Wait 可返回实际启动错误而非误报 nil。
+func (m *Manager) finishStartFailure(done chan struct{}, startErr error) {
 	m.mu.Lock()
 	m.state = Stopped
 	m.cmd = nil
+	m.waitErr = startErr // 记录启动失败原因，Wait 据此上报真实错误
 	m.mu.Unlock()
 	close(done)
 }
 
 // readLines 逐行读取 r 直到 EOF，逐行调用 cb；EOF 后 defer wg.Done()
 // 通知收尾 goroutine 可执行 cmd.Wait()（否则计数器永不归零，Stop 永久阻塞）。
-// 进程退出或被 kill 时管道以 EOF 关闭，属预期路径，无错误需要上报。
+// 进程退出或被 kill 时管道以 EOF 关闭，属预期路径；若 scanner 中途出错则记录日志。
 func (m *Manager) readLines(wg *sync.WaitGroup, r io.Reader, cb func(line string)) {
 	defer wg.Done()
 	scanner := bufio.NewScanner(r)
@@ -252,10 +253,15 @@ func (m *Manager) readLines(wg *sync.WaitGroup, r io.Reader, cb func(line string
 			cb(scanner.Text())
 		}
 	}
+	// 读行结束后补错误检查：scan 中途出错不得静默丢弃（EOF 属预期，Err 为 nil）
+	if err := scanner.Err(); err != nil {
+		log.Printf("process: 读行错误: %v", err)
+	}
 }
 
-// Stop 请求进程退出：先尝试 os.Interrupt 优雅信号（Windows 标准库不支持时
-// 记录后直接进入宽限期），宽限期 Grace 内进程未退出则强 Kill。
+// Stop 请求进程退出：Windows 标准库不支持向子进程发送信号（os.Interrupt 恒返回
+// ErrNoSupport），worker 收不到任何优雅退出信号；实际行为为固定宽限等待
+// （默认 3 秒）后强 Kill。
 // 幂等：未启动、已退出、重复 Stop 均返回 nil，不 panic。
 func (m *Manager) Stop() error {
 	m.mu.Lock()

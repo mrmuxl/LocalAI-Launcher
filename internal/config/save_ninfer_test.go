@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-// Test_SaveConfig_when_roundTrip_preservesAll32Fields
+// Test_SaveConfig_when_roundTrip_preservesAll33Fields
 // 写入临时目录 → LoadConfig 读回 → 整结构相等（SaveConfig/LoadConfig JSON 往返）。
-func Test_SaveConfig_when_roundTrip_preservesAll32Fields(t *testing.T) {
+func Test_SaveConfig_when_roundTrip_preservesAll33Fields(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "ninfer.json")
 	cfg := DefaultConfig()
 	cfg.ListenHost = "0.0.0.0"

@@ -1,6 +1,6 @@
-// form_ninfer.go 构建 32 字段 / 9 分组的 NInfer 启动器表单，并承载校验交互。
+// form_ninfer.go 构建 33 字段 / 9 分组的 NInfer 启动器表单，并承载校验交互。
 //
-// 字段定义与 config.Config 的 34 个字段一一对应（名称/顺序不可增减）；
+// 字段定义与 config.Config 的 33 个字段一一对应（名称/顺序不可增减）；
 // 中文标签取自 config.go 字段注释（唯一来源）。
 package gui
 
@@ -37,7 +37,7 @@ type fieldDef struct {
 	options []string // kindSelect 的选项
 }
 
-// fieldDefs：32 字段，9 组，顺序与 config.Config 字段顺序一致。
+// fieldDefs：33 字段，9 组，顺序与 config.Config 字段顺序一致。
 // 字段与默认值对齐 start-ninfer.bat 默认配方（真实 ninfer-kvmem-server.exe 参数）；
 // 标签末尾括号内为对应命令行参数（来源：docs/命令行参数参考.txt 与 argv 构造契约）。
 var fieldDefs = []fieldDef{
@@ -346,7 +346,8 @@ func (f *NinferForm) SetFieldsFrom(cfg config.Config) {
 // CollectConfig 从控件收集当前配置（主线程轻量读）。
 // 第二个返回值是中文解析错误列表（空串按默认值处理）。
 func (f *NinferForm) CollectConfig() (config.Config, []string) {
-	var cfg config.Config
+	// 以默认配置起步：表单空值时回退默认值而非零值（与加载失败时行为一致）
+	cfg := config.DefaultConfig()
 	var errs []string
 
 	cfg.ListenHost = f.entries["ListenHost"].Text

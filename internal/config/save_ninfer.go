@@ -21,7 +21,8 @@ func SaveConfig(cfg Config, path string) error {
 		}
 	}
 
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	// 原子写：tmp+rename，进程中途被杀不会留下半写损坏的 JSON。
+	if err := saveJSONAtomic(path, data); err != nil {
 		return fmt.Errorf("写入配置文件 %s 失败: %w", path, err)
 	}
 	return nil

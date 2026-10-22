@@ -16,10 +16,10 @@ func newModelFile(t *testing.T) string {
 	return p
 }
 
-// Test_DefaultConfig_when_batRecipeApplied_returnsAll32Defaults
+// Test_DefaultConfig_when_batRecipeApplied_returnsAll33Defaults
 // 断言 DefaultConfig() 的 32 个字段逐一等于 start-ninfer.bat 默认配方
 // （整结构相等比较，无字段遗漏）。
-func Test_DefaultConfig_when_batRecipeApplied_returnsAll32Defaults(t *testing.T) {
+func Test_DefaultConfig_when_batRecipeApplied_returnsAll33Defaults(t *testing.T) {
 	got := DefaultConfig()
 
 	want := Config{

@@ -29,10 +29,12 @@ func acquireSingleInstanceLock() error {
 		return err
 	}
 	r1, _, lastErr := createMutex.Call(0, 1, uintptr(unsafe.Pointer(name)))
+	if lastErr == syscall.Errno(errAlreadyExists) {
+		// Windows API 陷阱：同名互斥体已存在时 CreateMutexW 返回已有互斥体的
+		// 有效句柄（r1 != 0），必须按 lastErr 判定而非 r1，否则第二个实例不会被拦截。
+		return errAlreadyRunning
+	}
 	if r1 == 0 {
-		if lastErr == syscall.Errno(errAlreadyExists) {
-			return errAlreadyRunning
-		}
 		return lastErr
 	}
 	mutexHandle = r1

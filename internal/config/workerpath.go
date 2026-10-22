@@ -1,6 +1,6 @@
 // workerpath.go 持久化用户通过文件选择框选定的 worker 可执行文件路径。
 //
-// 与 32 字段的业务配置（ninfer.json）分离：worker 路径是启动器自身设置，
+// 与 33 字段的业务配置（ninfer.json）分离：worker 路径是启动器自身设置，
 // 不参与业务校验与表单，单独存档为启动器 exe 同级目录下的 worker.json。
 // 全部配置文件（ninfer.json/llama.json/worker.json）均便携式存放于
 // 启动器 exe 同级目录。
@@ -103,9 +103,10 @@ func LoadLastPickDir() (string, error) {
 	return rec.LastPickDir, nil
 }
 
-// workerFileMu 串行化对 worker.json 的读-改-写：选择推理引擎后
+// workerFileMu 串行化对 worker.json 的全部读与写：选择推理引擎后
 // SaveWorkerPath 与 SaveLastPickDir 可能并发执行，无锁交错写会损坏 JSON
-// （实测出现过结尾多 `}` 导致启动时解析失败、每次都要重新选择）。
+// （实测出现过结尾多 `}` 导致启动时解析失败、每次都要重新选择）；
+// 读路径也加锁，避免读者在写者写中途读到半截文件（短临界区，可接受）。
 var workerFileMu sync.Mutex
 
 // saveWorkerPathField 读出存档、应用字段更新函数后整体写回。
@@ -120,7 +121,8 @@ func saveWorkerPathFieldTo(path string, apply func(rec *WorkerPathRecord)) (stri
 	workerFileMu.Lock()
 	defer workerFileMu.Unlock()
 
-	rec, err := loadWorkerRecordFrom(path)
+	// 本函数已持 workerFileMu，直接走未加锁版本避免重入死锁。
+	rec, err := loadWorkerRecordUnlocked(path)
 	if err != nil {
 		log.Printf("worker 路径存档 %s 损坏（%v），将用新值覆盖", path, err)
 		rec = WorkerPathRecord{}
@@ -133,8 +135,18 @@ func saveWorkerPathFieldTo(path string, apply func(rec *WorkerPathRecord)) (stri
 }
 
 // loadWorkerRecordFrom 从指定文件读取完整存档记录（测试可注入路径）。
+// 读路径经 workerFileMu 加锁，与写路径互斥，避免读到写者写中途的半截文件
+// （锁内只做文件 IO，短临界区，不回调 GUI）。
 // 文件不存在返回零值记录不报错；出现其他 IO/JSON 错误时返回错误。
 func loadWorkerRecordFrom(path string) (WorkerPathRecord, error) {
+	workerFileMu.Lock()
+	defer workerFileMu.Unlock()
+	return loadWorkerRecordUnlocked(path)
+}
+
+// loadWorkerRecordUnlocked 读取完整存档记录但不加锁：
+// 仅供已持有 workerFileMu 的调用方（saveWorkerPathFieldTo）使用，避免重入死锁。
+func loadWorkerRecordUnlocked(path string) (WorkerPathRecord, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -163,7 +175,8 @@ func saveWorkerRecordTo(path string, rec WorkerPathRecord) error {
 		}
 	}
 
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	// 原子写：tmp+rename，进程中途被杀不会留下半写损坏的 JSON。
+	if err := saveJSONAtomic(path, data); err != nil {
 		return fmt.Errorf("写入 worker 路径存档 %s 失败: %w", path, err)
 	}
 	return nil
