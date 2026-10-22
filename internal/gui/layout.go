@@ -1,6 +1,6 @@
 // layout.go 组装窗口布局：两栏主体——
 // 左栏：引擎切换 AppTabs（NInfer / llama.cpp，各自表单整体滚动，
-// 「服务」组下含推理引擎行）；右栏：上 30% 状态区（操作行 + 操作反馈 +
+// 「服务」组下含推理引擎行）+ 说明 tab；右栏：上 30% 状态区（操作行 + 操作反馈 +
 // 状态表格 + 当前引擎校验行）、下 70% 日志区（VSplit 可拖动）。
 package gui
 
@@ -16,10 +16,11 @@ const logMinHeight = 200
 
 // buildLayout 组装窗口内容并设置到 window（主线程，NewApp 构造期调用）。
 func (a *App) buildLayout(window fyne.Window) {
-	// 左栏双引擎 tab：校验行跟随当前选中 tab 显示。
+	// 左栏双引擎 tab + 说明 tab：校验行跟随当前选中 tab 显示。
 	tabs := container.NewAppTabs(
 		container.NewTabItem("NInfer", a.form.Content()),
 		container.NewTabItem("llama.cpp", a.llamaForm.Content()),
+		container.NewTabItem("说明", newAboutContent()),
 	)
 	a.tabs = tabs
 	errBox := container.NewVBox(a.form.errLabel, a.llamaForm.errLabel)
@@ -31,9 +32,13 @@ func (a *App) buildLayout(window fyne.Window) {
 	a.form.errLabel.Hidden = false
 	a.llamaForm.errLabel.Hidden = true
 	// tab 切换：校验行跟随 + 日志区切换到对应引擎的环形缓冲（互不混写）。
+	// 说明 tab（index 2）下日志区保持当前引擎不动。
 	tabs.OnSelected = func(*container.TabItem) {
 		syncErrVisible()
-		a.logv.SetRing(a.ringFor(int32(tabs.SelectedIndex())))
+		idx := tabs.SelectedIndex()
+		if idx <= 1 {
+			a.logv.SetRing(a.ringFor(int32(idx)))
+		}
 	}
 	syncErrVisible()
 

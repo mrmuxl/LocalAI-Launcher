@@ -72,16 +72,16 @@ func TestFormFieldCount(t *testing.T) {
 	}
 }
 
-// TestLlamaFormFieldCount llama 表单控件数必须为 46（9 组）。
+// TestLlamaFormFieldCount llama 表单控件数必须为 49（9 组）。
 func TestLlamaFormFieldCount(t *testing.T) {
 	w := newTestWindow(t)
 	f := NewLlamaForm(w)
 
-	if got := f.CountFields(); got != 46 {
-		t.Fatalf("llama 字段定义数 = %d，期望 46", got)
+	if got := f.CountFields(); got != 49 {
+		t.Fatalf("llama 字段定义数 = %d，期望 49", got)
 	}
-	if got := len(f.entries) + len(f.checks) + len(f.selects); got != 46 {
-		t.Fatalf("llama 实际控件数 = %d（Entry %d + Check %d + Select %d），期望 46",
+	if got := len(f.entries) + len(f.checks) + len(f.selects); got != 49 {
+		t.Fatalf("llama 实际控件数 = %d（Entry %d + Check %d + Select %d），期望 49",
 			got, len(f.entries), len(f.checks), len(f.selects))
 	}
 	if got := len(f.GroupNames()); got != 9 {
@@ -216,5 +216,31 @@ func TestLogViewSetRingForceBottom(t *testing.T) {
 	lv.SetRing(ringB)
 	if lv.seg.Text != "B line 1" {
 		t.Fatalf("SetRing 后 seg.Text = %q，期望 %q", lv.seg.Text, "B line 1")
+	}
+}
+
+// TestTabsCountAndTitle 验证左栏 AppTabs 共 3 项且第三项标题为「说明」。
+func TestTabsCountAndTitle(t *testing.T) {
+	w := newTestWindow(t)
+	form := NewNinferForm(w)
+	llamaForm := NewLlamaForm(w)
+	ring := process.NewRingLog(0)
+	logv := NewLogView(ring)
+	msgLbl := widget.NewLabel("")
+	msgLbl.Wrapping = fyne.TextWrapWord
+	status := NewStatusPanel(func() {}, func() {})
+
+	a := &App{form: form, llamaForm: llamaForm, status: status, logv: logv, msgLbl: msgLbl}
+	a.buildLayout(w)
+
+	if a.tabs == nil {
+		t.Fatal("tabs 为 nil")
+	}
+	items := a.tabs.Items
+	if len(items) != 3 {
+		t.Fatalf("tabs 项数 = %d，期望 3", len(items))
+	}
+	if items[2].Text != "说明" {
+		t.Fatalf("第三项标题 = %q，期望「说明」", items[2].Text)
 	}
 }
