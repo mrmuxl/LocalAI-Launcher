@@ -21,6 +21,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
@@ -35,6 +36,12 @@ const windowTitle = "LocalAI 启动器"
 
 // windowSize 初始窗口尺寸；计划要求最小 900x640，此处给足余量。
 var windowSize = fyne.NewSize(1100, 720)
+
+// zhHansPatch 补充 Fyne 内置 zh-Hans 翻译缺失的条目，消除 Select 占位符的 Translation failure 日志。
+const zhHansPatch = `{"(Select one)": "选择一项"}`
+
+// enPatch 英文系统内置包同样缺 "(Select one)"，一并补上。
+const enPatch = `{"(Select one)": "(Select one)"}`
 
 // statusInterval 状态刷新周期（计划：启动后 1s 周期刷新）。
 const statusInterval = time.Second
@@ -60,12 +67,13 @@ type App struct {
 	lastPickDir     string // 文件选择弹窗上次所在目录（内存 + worker.json 持久化）
 
 	mu            sync.Mutex
-	startedAt     time.Time // 最近一次进入 Running 的时间（doStart 写，tick 读）
-	activeEngine  int32     // 当前运行引擎（0=NInfer，1=llama.cpp；atomic，OnLine 按此分流）
-	lastLogNinfer string    // NInfer 最近一条 worker 日志行（OnLine 后台线程写）
-	lastLogLlama  string    // llama.cpp 最近一条 worker 日志行（OnLine 后台线程写）
-	valSeqNinfer  int64     // NInfer 表单校验代际
-	valSeqLlama   int64     // llama 表单校验代际
+	startedAt     time.Time   // 最近一次进入 Running 的时间（doStart 写，tick 读）
+	activeEngine  int32       // 当前运行引擎（0=NInfer，1=llama.cpp；atomic，OnLine 按此分流）
+	lastLogNinfer string      // NInfer 最近一条 worker 日志行（OnLine 后台线程写）
+	lastLogLlama  string      // llama.cpp 最近一条 worker 日志行（OnLine 后台线程写）
+	valSeqNinfer  int64       // NInfer 表单校验代际
+	valSeqLlama   int64       // llama 表单校验代际
+	initDone      atomic.Bool // initWorkerPath 完成标记（onLoad 守卫，防双入口加载竞态）
 
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -76,7 +84,16 @@ type App struct {
 // worker 路径不在此决定：由 initWorkerPath 在后台读取存档，
 // 无存档时经文件选择框由用户指定（选择结果持久化，下次启动直接使用）。
 func NewApp() *App {
-	fyneApp := app.New()
+	fyneApp := app.NewWithID("io.github.mrmuxl.localai-launcher")
+	// 补充 Fyne 内置 zh-Hans 翻译缺失的条目（固定注册到 zh-Hans tag 与内置包合并，
+	// 不改变语言选择；不可用 SystemLocale 注册，否则 zh-CN 会抢匹配导致语言漂移）
+	if err := lang.AddTranslations(fyne.NewStaticResource("zh-Hans.json", []byte(zhHansPatch))); err != nil {
+		log.Printf("注册 zh-Hans 补充翻译失败: %v", err)
+	}
+	// 英文系统的内置包同样缺 "(Select one)"，一并补上
+	if err := lang.AddTranslations(fyne.NewStaticResource("en.json", []byte(enPatch))); err != nil {
+		log.Printf("注册 en 补充翻译失败: %v", err)
+	}
 	// 标题栏为纯文本（系统不支持可点击链接），版本、项目主页与邮箱一并展示。
 	window := fyneApp.NewWindow(windowTitle + " v" + version.Version + " · " + version.RepoURL + " · " + version.Email)
 
@@ -157,19 +174,29 @@ func (a *App) initWorkerPath() {
 	case lerr != nil:
 		log.Printf("读取 llama worker 路径存档失败: %v，回退默认路径", lerr)
 	case lsaved != "" && fileExists(lsaved):
+		a.mu.Lock()
 		a.llamaWorkerPath = lsaved
+		a.mu.Unlock()
 		fyne.Do(func() { a.llamaForm.SetWorkerPath(lsaved) })
 	case lsaved != "":
+		// 存档指向的文件已失效：除日志外还要在 UI 反馈，避免用户不知情地使用默认路径
 		log.Printf("已保存的 llama worker 路径不存在: %s，回退默认路径", lsaved)
+		fyne.Do(func() {
+			a.msgLbl.SetText("已保存的 llama 推理引擎路径不存在，已回退默认路径，可重新指定")
+		})
 	}
 
 	if dir, err := config.LoadLastPickDir(); err != nil {
 		log.Printf("读取上次打开目录失败: %v", err)
 	} else if dir != "" {
+		a.mu.Lock()
 		a.lastPickDir = dir
+		a.mu.Unlock()
 	}
 
 	a.doLoadInitial()
+	// 初始配置加载完成后开放「配置加载」按钮（onLoad 守卫，防双入口竞态）
+	a.initDone.Store(true)
 }
 
 // fileExists 路径存在且不是目录。
@@ -250,8 +277,15 @@ func (a *App) pickWithDialog(title string, exts []string, onPick func(path strin
 		if closeErr := reader.Close(); closeErr != nil {
 			log.Printf("关闭文件选择结果失败: %v", closeErr)
 		}
-		if dir := filepath.Dir(path); dir != a.lastPickDir {
+		dir := filepath.Dir(path)
+		// lastPickDir 与后台 initWorkerPath 共享，纳入 a.mu；持久化 IO 留在锁外
+		a.mu.Lock()
+		changed := dir != a.lastPickDir
+		if changed {
 			a.lastPickDir = dir
+		}
+		a.mu.Unlock()
+		if changed {
 			go func() {
 				if err := config.SaveLastPickDir(dir); err != nil {
 					log.Printf("保存上次打开目录失败: %v", err)
@@ -261,8 +295,11 @@ func (a *App) pickWithDialog(title string, exts []string, onPick func(path strin
 		onPick(path)
 	}, a.window)
 	d.SetFilter(storage.NewExtensionFileFilter(exts))
-	if a.lastPickDir != "" {
-		if lister, err := storage.ListerForURI(storage.NewFileURI(a.lastPickDir)); err == nil {
+	a.mu.Lock()
+	pickDir := a.lastPickDir
+	a.mu.Unlock()
+	if pickDir != "" {
+		if lister, err := storage.ListerForURI(storage.NewFileURI(pickDir)); err == nil {
 			d.SetLocation(lister)
 		}
 	}
@@ -273,12 +310,17 @@ func (a *App) pickWithDialog(title string, exts []string, onPick func(path strin
 // 独立窗口可拉大、双击选择、起始目录为上次所在目录（内存 + worker.json 持久化）。
 // onPick 在主线程回调（双击文件后），由调用方决定是否派发后台 goroutine。
 func (a *App) openFilePicker(title string, exts []string, onPick func(path string)) {
+	a.mu.Lock()
 	start := a.lastPickDir
+	a.mu.Unlock()
 	if start == "" {
 		start, _ = os.Getwd()
 	}
 	p := newFilePicker(a.fyneApp, title, start, exts, func(path, dir string) {
+		// lastPickDir 与后台 initWorkerPath 共享，纳入 a.mu；持久化 IO 留在锁外
+		a.mu.Lock()
 		a.lastPickDir = dir
+		a.mu.Unlock()
 		go func() {
 			if err := config.SaveLastPickDir(dir); err != nil {
 				log.Printf("保存上次打开目录失败: %v", err)
@@ -337,7 +379,10 @@ func (a *App) applyLlamaWorkerChoice(path string) {
 	} else {
 		log.Printf("llama worker 路径已保存: %s", savedPath)
 	}
+	// llamaWorkerPath 与 doStartLlama 读取共享，纳入 a.mu（锁内仅赋值，UI 在锁外）
+	a.mu.Lock()
 	a.llamaWorkerPath = path
+	a.mu.Unlock()
 	fyne.Do(func() {
 		a.llamaForm.SetWorkerPath(path)
 		a.msgLbl.SetText("✓ llama worker 路径已保存，下次启动直接使用：" + path)
@@ -345,7 +390,10 @@ func (a *App) applyLlamaWorkerChoice(path string) {
 }
 
 // llamaWorkerPathOrDef 返回当前 llama worker 路径（空则默认相对路径）。
+// 由 doStartLlama goroutine 调用，读取纳入 a.mu（与 initWorkerPath 等写方互斥）。
 func (a *App) llamaWorkerPathOrDef() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.llamaWorkerPath != "" {
 		return a.llamaWorkerPath
 	}
@@ -398,6 +446,7 @@ func (a *App) applyConfig(cfg config.Config, msg string) {
 // applyLlamaConfig 回填 llama 表单 + 校验 + 反馈文案（goroutine 内调用）。
 // ValidateLlama 含模型文件存在性检查（fs IO），只可在 goroutine 中执行。
 func (a *App) applyLlamaConfig(cfg config.LlamaConfig, msg string) {
+	cfg = config.NormalizeLlama(cfg) // 对齐 ninfer applyConfig：载入后先规整再校验
 	errs := config.ValidateLlama(cfg)
 	fyne.Do(func() {
 		a.llamaForm.SetFieldsFrom(cfg)
@@ -463,6 +512,7 @@ func (a *App) doValidateNinfer(seq int64, cfg config.Config) {
 
 // doValidateLlama 后台校验 llama 配置（goroutine）；代际过期则丢弃结果。
 func (a *App) doValidateLlama(seq int64, cfg config.LlamaConfig) {
+	cfg = config.NormalizeLlama(cfg) // 对齐 ninfer doValidateNinfer：后台校验前先规整
 	errs := config.ValidateLlama(cfg)
 	if atomic.LoadInt64(&a.valSeqLlama) != seq {
 		return
@@ -471,8 +521,11 @@ func (a *App) doValidateLlama(seq int64, cfg config.LlamaConfig) {
 }
 
 // onStart 启动按钮回调（主线程）：按当前选中 tab 选择引擎，
-// 先校验再禁用按钮，Start 入 goroutine。
+// 先校验再禁用按钮，Start 入 goroutine。说明 tab（index > 1）下静默忽略。
 func (a *App) onStart() {
+	if a.tabs != nil && a.tabs.SelectedIndex() > 1 {
+		return
+	}
 	if a.manager.State() != process.Stopped {
 		return
 	}
@@ -499,6 +552,7 @@ func (a *App) onStart() {
 
 // doStartLlama 后台启动 llama worker（goroutine）：全量校验 → 输出命令行 → StartPath。
 func (a *App) doStartLlama(cfg config.LlamaConfig) {
+	cfg = config.NormalizeLlama(cfg) // 对齐 ninfer doStart：启动前规范化再校验
 	if errs := config.ValidateLlama(cfg); len(errs) > 0 {
 		log.Printf("启动前校验失败: %v", errs)
 		fyne.Do(func() {
@@ -509,6 +563,9 @@ func (a *App) doStartLlama(cfg config.LlamaConfig) {
 	}
 	exe := a.llamaWorkerPathOrDef()
 	args := argv.BuildLlamaArgs(cfg)
+	// 清除 NInfer 引擎遗留的 CUDA_VISIBLE_DEVICES（manager 环境跨引擎共享，空值即删除该键，
+	// 避免污染 llama.cpp worker；llama 的 GPU 层数走 argv --gpu-layers）。
+	a.manager.SetEnv("CUDA_VISIBLE_DEVICES", "")
 	atomic.StoreInt32(&a.activeEngine, 1) // OnLine 按此分流到 llamaRing
 	a.announceCmdline(1, exe, args)
 	if err := a.manager.StartPath(exe, args); err != nil {
@@ -560,16 +617,26 @@ func (a *App) announceCmdline(engine int32, exe string, args []string) {
 	fyne.Do(func() { a.logv.Refresh() })
 }
 
-// onStop 停止按钮回调（主线程）：仅 Running 可停，Stop 入 goroutine。
+// onStop 停止按钮回调（主线程）：仅 Running 可停，Stop 入 goroutine；
+// 失败经 log + msgLbl 反馈（按钮可用性由 tick 每秒 ApplyState 自愈，不手动禁用）。
 func (a *App) onStop() {
 	if a.manager.State() != process.Running {
 		return
 	}
-	go a.manager.Stop()
+	go func() {
+		if err := a.manager.Stop(); err != nil {
+			log.Printf("停止 worker 失败: %v", err)
+			fyne.Do(func() { a.msgLbl.SetText("停止失败：" + err.Error()) })
+		}
+	}()
 }
 
 // onSave 保存按钮回调（主线程）：按当前选中 tab 收集配置，入 goroutine 写盘。
+// 说明 tab（index > 1）下静默忽略。
 func (a *App) onSave() {
+	if a.tabs != nil && a.tabs.SelectedIndex() > 1 {
+		return
+	}
 	if a.tabs != nil && a.tabs.SelectedIndex() == 1 {
 		cfg, errs := a.llamaForm.CollectConfig()
 		go a.doSaveLlama(cfg, errs)
@@ -582,6 +649,7 @@ func (a *App) onSave() {
 // doSaveLlama 后台写 llama 配置（goroutine）：先校验，失败则回显。
 func (a *App) doSaveLlama(cfg config.LlamaConfig, errs []string) {
 	if len(errs) == 0 {
+		cfg = config.NormalizeLlama(cfg) // 对齐 ninfer doSave：保存前先规整再校验
 		errs = config.ValidateLlama(cfg)
 	}
 	if len(errs) > 0 {
@@ -625,8 +693,16 @@ func (a *App) doSave(cfg config.Config, errs []string) {
 }
 
 // onLoad 加载按钮回调（主线程）：按当前选中 tab 读对应引擎配置，
-// 读盘入 goroutine，经 fyne.Do 回填。
+// 读盘入 goroutine，经 fyne.Do 回填。说明 tab（index > 1）下静默忽略。
 func (a *App) onLoad() {
+	// 守卫：init 未完成时表单尚未载入存档，此时加载会与 doLoadInitial 双入口竞态、
+	// 以默认值覆盖表单，静默忽略本次点击（用户可再点一次）。
+	if !a.initDone.Load() {
+		return
+	}
+	if a.tabs != nil && a.tabs.SelectedIndex() > 1 {
+		return
+	}
 	if a.tabs != nil && a.tabs.SelectedIndex() == 1 {
 		go func() {
 			path := config.ConfigPathFor("llama.json")
@@ -652,15 +728,15 @@ func (a *App) onLoad() {
 	}()
 }
 
-// onClosed 窗口关闭回调（主线程）：取消刷新循环，尽力停止 worker。
+// onClosed 窗口关闭回调（主线程）：取消刷新循环，同步停止 worker。
 func (a *App) onClosed() {
 	a.cancel()
 	if a.manager.State() != process.Stopped {
-		go func() {
-			if err := a.manager.Stop(); err != nil {
-				log.Printf("关闭时停止 worker 失败: %v", err)
-			}
-		}()
+		// 同步停止：窗口已关闭、事件循环即将退出，阻塞主线程无 UI 影响；
+		// 确保 Kill 在进程退出前执行，worker 不成孤儿。
+		if err := a.manager.Stop(); err != nil {
+			log.Printf("关闭时停止 worker 失败: %v", err)
+		}
 	}
 }
 
@@ -669,13 +745,14 @@ func (a *App) onClosed() {
 // 对应引擎的 ring 与 lastLog（均线程安全），不碰 UI——两引擎日志互不混写。
 func (a *App) wireLog() {
 	a.manager.OnLine = func(line string) {
-		if atomic.LoadInt32(&a.activeEngine) == 1 {
+		engine := atomic.LoadInt32(&a.activeEngine) // 单次读取，ring 与 lastLog 共用
+		if engine == 1 {
 			a.llamaRing.Append(line)
 		} else {
 			a.ninferRing.Append(line)
 		}
 		a.mu.Lock()
-		if atomic.LoadInt32(&a.activeEngine) == 1 {
+		if engine == 1 {
 			a.lastLogLlama = line
 		} else {
 			a.lastLogNinfer = line
