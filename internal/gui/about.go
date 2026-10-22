@@ -18,19 +18,16 @@ func newAboutContent() fyne.CanvasObject {
 	title := widget.NewLabelWithStyle("说明", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	title.SizeName = theme.SizeNameHeadingText
 
-	// 「项目地址」小节：三条项目超链接（URL 与文案沿用原值，本项目链接与右栏状态区 repoLink 一致），逐行加「• 」项目符号
+	// 「项目地址」小节：三条项目超链接（文案不含 URL，点击即打开；本项目链接与右栏状态区 repoLink 一致），逐行加「• 」项目符号
 	llamaURL, _ := url.Parse("https://github.com/ggml-org/llama.cpp")
-	llamaLink := widget.NewHyperlink("llama.cpp 项目地址：https://github.com/ggml-org/llama.cpp", llamaURL)
-	llamaLink.Wrapping = fyne.TextWrapWord
+	llamaLink := widget.NewHyperlink("llama.cpp 项目地址", llamaURL)
 
 	kvmemURL, _ := url.Parse("https://github.com/kvmem/kvmem")
-	kvmemLink := widget.NewHyperlink("NInfer (kvmem) 项目地址：https://github.com/kvmem/kvmem", kvmemURL)
-	kvmemLink.Wrapping = fyne.TextWrapWord
+	kvmemLink := widget.NewHyperlink("NInfer (kvmem) 项目地址", kvmemURL)
 
 	// 本项目地址（与右栏状态区 repoLink、README 一致）
 	launcherURL, _ := url.Parse("https://github.com/mrmuxl/LocalAI-Launcher")
 	launcherLink := widget.NewHyperlink("本项目 (LocalAI-Launcher) 项目地址", launcherURL)
-	launcherLink.Wrapping = fyne.TextWrapWord
 
 	projects := container.NewPadded(container.NewVBox(
 		bulletRow(llamaLink),
