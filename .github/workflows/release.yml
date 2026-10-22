@@ -1,0 +1,84 @@
+name: LocalAI-launcher Windows Build
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.4'
+          cache: true
+
+      # MSYS2 + MinGW64 给 Fyne CGO 使用
+      - name: Install MinGW-w64 for CGO / Fyne
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: mingw64
+          update: true
+          install: mingw-w64-x86_64-gcc
+
+      - name: Build (same as make build-release)
+        env:
+          CGO_ENABLED: 1
+        run: |
+          $VERSION = git describe --tags --always --dirty 2>$null
+          if (-not $VERSION) { $VERSION = "v0.1.0" }
+          $SHORT_COMMIT = git rev-parse --short HEAD
+          $LDFLAGS = "-H windowsgui -X llmlauncher/internal/version.Version=$VERSION"
+          $OUTPUT = "bin/LocalAI-launcher-$VERSION-windows-amd64.exe"
+          New-Item -ItemType Directory -Path bin -Force | Out-Null
+          go build -ldflags "$LDFLAGS" -o "$OUTPUT" ./cmd/launcher
+          echo "OUTPUT=$OUTPUT" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "VERSION=$VERSION" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "SHORT_COMMIT=$SHORT_COMMIT" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Zip package
+        run: |
+          $exe = $env:OUTPUT
+          $zipName = ($exe -replace '\.exe$', '.zip')
+          Compress-Archive -Path $exe -DestinationPath $zipName
+          echo "ZIP=$zipName" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Generate SHA256
+        run: |
+          $zip = $env:ZIP
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $(Split-Path $zip -Leaf)" | Out-File sha256sum.txt
+
+      # main分支 / 手动触发：Artifact名称带上短commit hash
+      - name: Upload artifact (main branch / manual run)
+        if: github.ref_type == 'branch' || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: LocalAI-launcher-${{ env.SHORT_COMMIT }}-windows
+          paths: |
+            ${{ env.ZIP }}
+            sha256sum.txt
+
+      # tag推送：发布Release
+      - name: Publish Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.ZIP }}
+            sha256sum.txt
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

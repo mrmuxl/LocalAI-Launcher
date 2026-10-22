@@ -46,7 +46,7 @@ func NewStatusPanel(onStart, onStop func()) *StatusPanel {
 		uptimeLabel:  widget.NewLabel("-"),
 		lastLogLabel: widget.NewLabel("（暂无）"),
 		versionLabel: widget.NewLabel("v" + version.Version),
-		repoLink:     widget.NewHyperlink("mrmuxl/LocalAI-Launcher", parseRepoURL()),
+		repoLink:     widget.NewHyperlink("http://github.com/mrmuxl/LocalAI-Launcher", parseRepoURL()),
 		emailLabel:   widget.NewLabel(version.Email),
 	}
 	p.startBtn = widget.NewButton("启动", onStart)
