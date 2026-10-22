@@ -30,6 +30,8 @@ make build-launcher
 
 双击 `bin/LocalAI-launcher.exe` 即可。界面分为左右两栏：左栏为双引擎 tab 表单，右栏自上而下为状态区、操作行与日志区，中间分割条可拖动。右栏状态区显示运行状态（状态/PID/运行时长/最新日志）、版本号及 GitHub 项目链接与维护者邮箱。
 
+![maingui](https://github.com/mrmuxl/LocalAI-Launcher/blob/main/docs/maingui.png)
+
 ## 使用说明
 
 ### 推理引擎路径
